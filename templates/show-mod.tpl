@@ -102,7 +102,7 @@
 			<div class="infobox{if empty($asset['trailerVideoUrl']) && empty($files)} nomedia{/if}">
 				<span class="text-weak">Tags:</span>
 				{foreach from=$tags item=tag}
-					<a href="/list/mod/?tagids[]={$tag['tagId']}" class="tag" style="background-color:{$tag['color']}"
+					<a href="/list/mod?tagids[]={$tag['tagId']}" class="tag" style="background-color:{$tag['color']}"
 						title="{$tag['text']}">#{$tag['name']}</a>
 				{/foreach}
 				<br>
@@ -203,7 +203,7 @@
 								<div class="tags">
 								{foreach from=$release['compatibleGameVersionsFolded'] item=versionStr}
 									{if contains($versionStr, ' - ')}<span class="tag">{$versionStr}</span>
-									{else}<a href="/list/mod/?gv[]={$versionStr}" class="tag" rel="tag">{$versionStr}</a>{/if}
+									{else}<a href="/list/mod?gv[]={$versionStr}" class="tag" rel="tag">{$versionStr}</a>{/if}
 								{/foreach}
 								</div>
 							</td>{/if}
