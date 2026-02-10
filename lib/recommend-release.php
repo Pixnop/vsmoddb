@@ -120,9 +120,15 @@ function recommendReleases($releases, $maxDesiredGameVersionStable, $maxDesiredG
 	foreach($releasesByMaxGameVersion as $release) {
 		$compatibleWithMaxDesiredStable = false;
 		$compatibleWithAtLeastOneStable = false;
+		$maxUnstableCompatibility = 0;
 		foreach($release['compatibleGameVersions'] as $compatVersion) {
 			if($compatVersion === $maxDesiredGameVersionStable) $compatibleWithMaxDesiredStable = true;
-			$compatibleWithAtLeastOneStable |= !isPreReleaseVersion($compatVersion);
+			if(isPreReleaseVersion($compatVersion)) {
+				$maxUnstableCompatibility = max($maxUnstableCompatibility, $compatVersion);
+			}
+			else {
+				$compatibleWithAtLeastOneStable = true;
+			}
 		}
 
 		$isPreRelease = isPreReleaseVersion($release['version']);
@@ -139,7 +145,7 @@ function recommendReleases($releases, $maxDesiredGameVersionStable, $maxDesiredG
 			}
 		}
 
-		if(!$out_fallbackRelease && $isConsideredPreRelease && ($isPreRelease || $release['version'] <= $maxDesiredGameVersionUnstable)) {
+		if(!$out_fallbackRelease && $isConsideredPreRelease && ($isPreRelease || $maxUnstableCompatibility <= $maxDesiredGameVersionUnstable)) {
 			if(!$out_testersRelease) $out_testersRelease = $release;
 			continue;
 		}
