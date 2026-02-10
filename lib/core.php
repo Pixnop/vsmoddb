@@ -219,7 +219,8 @@ function sanitizeHtml($text)
 	// Remove inspect-element junk that started to show up:
 	//TODO(Rennorb) @cleanup @brittle
 	//NOTE(Rennorb): Cant do this in htmllawd, node content will be left over.
-	$text = preg_replace('#<div id="inspect-element-top-layer".*?>(?:<div[ >](?:<[^d][^i][^v]|.)*?</div>|.)*</div>#si', '', $text);
+	$text = preg_replace('#<div id="inspect-element-top-layer".*?>(?:<div[ >](?:<[^d][^i][^v]|.)*?</div>|.)*?</div>#si', '', $text);
+	$text = preg_replace('#<div class="jso-cursor-trail-wrapper".*?>(?:<div[ >](?:<[^d][^i][^v]|.)+?</div>|.)*?</div>#si', '', $text);
 
 	return $text;
 }
