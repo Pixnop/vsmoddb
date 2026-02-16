@@ -133,7 +133,6 @@ function updateModTags($modId, $oldTags, $newTagsIds)
 	global $con;
 
 	$changes = [];
-	$tagData = [];
 
 	if (!empty($newTagsIds)) {
 		$addedNamesFolded = '';
@@ -152,8 +151,6 @@ function updateModTags($modId, $oldTags, $newTagsIds)
 			else {
 				unset($oldTags[$tagId]);
 			}
-
-			$tagData[] = $tag['name'] . ',#' . str_pad(dechex($tag['color']), 8, '0') . ',' . $tagId;
 		}
 
 		if ($addedNamesFolded) {
@@ -171,9 +168,6 @@ function updateModTags($modId, $oldTags, $newTagsIds)
 		$s = count($oldTags) !== 1 ? 's' : '';
 		$changes[] = "Deleted tag{$s} '$removedTagNamesFolded'.";
 	}
-
-	// TODO(Rennorb) @cleanup @perf: Is tagscached really needed ?
-	$con->execute('UPDATE assets a JOIN mods m ON m.assetId = a.assetId SET a.tagsCached = ? WHERE m.modId = ?', [implode("\r\n", $tagData), $modId]);
 
 	return $changes;
 }

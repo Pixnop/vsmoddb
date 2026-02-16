@@ -38,7 +38,6 @@ foreach ($userMods as &$mod) {
 	$mod['tags'] = [];
 	$mod['from'] = $shownUser['name'];
 	$mod['dbPath'] = formatModPath($mod);
-	$mod['tags'] = unwrapCachedTags($mod['tagsCached']);
 }
 unset($mod);
 

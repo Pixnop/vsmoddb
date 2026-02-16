@@ -25,7 +25,6 @@ if (!empty($user)) {
 		$mod['tags'] = [];
 		$mod['from'] = $user['name'];
 		$mod['dbPath'] = formatModPath($mod);
-		$mod['tags'] = unwrapCachedTags($mod['tagsCached']);
 	}
 	unset($mod);
 

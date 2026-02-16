@@ -8,16 +8,7 @@ $action = $urlparts[0];
 
 switch ($action) {
 	case "tags":
-		$rows = $con->getAll("select tagId, name, text, color from tags");
-		$rows = sortTags(1, $rows);
-		$tags = array();
-		foreach ($rows as $row) {
-			$tags[] = array(
-				"tagid" => intval($row["tagId"]),
-				"name" => $row['name'],
-				"color" => '#'.str_pad($row["color"], 8, '0', STR_PAD_LEFT),
-			);
-		}
+		$tags = $con->getAll("select tagId, name, CONCAT('#', LPAD(HEX(color), 8, '0')) as color from tags order by name");
 		good(array("statuscode" => 200, "tags" => $tags));
 		break;
 		

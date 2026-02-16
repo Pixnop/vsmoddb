@@ -29,6 +29,13 @@ $asset = $con->getRow("
 
 if (!$asset) showErrorPage(HTTP_NOT_FOUND);
 
+$tags = $con->getAll(<<<SQL
+	SELECT t.tagId, t.name, t.color, t.text
+	FROM modTags mt
+	LEFT JOIN tags t ON t.tagId = mt.tagId
+	WHERE mt.modId = ?
+SQL, [$asset['modId']]);
+
 $teamMembers = $con->getAll(<<<SQL
 	SELECT u.userId, u.name, HEX(u.hash) AS userHash
 	FROM modTeamMembers t
@@ -107,8 +114,7 @@ unset($comment);
 
 $view->assign("comments", $comments, null, true);
 
-$allTags = $con->getAssoc('SELECT tagId, name FROM tags');
-$view->assign("tags", unwrapCachedTagsWithText($asset["tagsCached"], $allTags));
+$view->assign("tags", $tags);
 
 $releases = $con->getAll(<<<SQL
 	SELECT

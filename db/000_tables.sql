@@ -15,7 +15,6 @@ CREATE TABLE IF NOT EXISTS `assets` (
   `assetTypeId`     INT          NOT NULL,
   `name`            VARCHAR(255) CHARACTER SET utf8mb4 NULL,
   `text`            TEXT CHARACTER SET utf8mb4 NULL,
-  `tagsCached`      TEXT             NULL, -- same data as LEFT JOIN modTags, LEFT JOIN tags, GROUP_CONCAT(CONCAT(tag...) DELIMITER '\r\n')
   `numSaved`        INT          NOT NULL DEFAULT 1,
   `created`         DATETIME     NOT NULL DEFAULT NOW(),
   `lastModified`    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

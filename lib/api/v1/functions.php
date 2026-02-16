@@ -17,7 +17,6 @@ function listMod($modid)
 			asset.assetId,
 			asset.name,
 			asset.text,
-			asset.tagsCached,
 			user.name as author,
 			`mod`.*,
 			logoFileExternal.cdnPath as logoCdnPathExternal,
@@ -34,6 +33,13 @@ function listMod($modid)
 	SQL, array($modid));
 
 	if (empty($row)) fail("404");
+
+	$tagNames = $con->getCol(<<<SQL
+		SELECT t.name
+		FROM modTags mt
+		LEFT JOIN tags t ON t.tagId = mt.tagId
+		WHERE mt.modId = ?
+	SQL, array($modid));
 
 	$rrows = $con->getAll(<<<SQL
 		select 
@@ -121,7 +127,7 @@ function listMod($modid)
 		// Removing it is however not a good idea becasue it's a public api, and changing it to work differently also isn't great because it would make the behaviour inconsistent between different tables.
 		// We therefore simply keep it in this jank state for now, until a potential future breaking version.
 		"lastmodified"    => $row['lastModified'],
-		"tags"            => unwrapTagNames($row['tagsCached']),
+		"tags"            => $tagNames,
 		"releases"        => $releases,
 		"screenshots"     => $screenshots,
 	);
@@ -206,7 +212,7 @@ function listMods()
 			mod.downloads,
 			follows,
 			comments, 
-			tagsCached,
+			group_concat(DISTINCT t.name SEPARATOR ',') as tags,
 			summary,
 			group_concat(DISTINCT r.identifier ORDER BY r.identifier SEPARATOR ',') as modidstrs,
 			user.name as author,
@@ -219,17 +225,15 @@ function listMods()
 			left join modReleases r on r.modId = `mod`.modId
 			left join modReleaseRetractions rr on rr.releaseId = r.releaseId
 			left join files as logofileExternal on logofileExternal.fileId = mod.embedLogoFileId
-			where rr.reason is null
+			left join modTags mt on mt.modId = mod.modId
+			left join tags t on t.tagId = mt.tagId
+		where rr.reason is null
 		" . (count($wheresql) ? " and " . implode(" and ", $wheresql) : "") . "
 		group by `mod`.modId
 		order by $orderBy $orderDirection
 	", $wherevalues);
 	$mods = array();
 	foreach ($rows as $row) {
-
-		$tags = unwrapTagNames($row["tagsCached"]);
-
-
 
 		$mods[] = array(
 			"modid"          => intval($row['modId']),
@@ -246,7 +250,7 @@ function listMods()
 			"side"           => $row['side'],
 			"type"           => mapCategoryToType($row['category']),
 			"logo"           => $row['logoCdnpathExternal'] ? formatCdnUrlFromCdnPath($row['logoCdnpathExternal']) : null,
-			"tags"           => $tags,
+			"tags"           => explode(',', $row['tags']),
 			"lastreleased"   => $row['lastReleased']
 		);
 	}
@@ -268,13 +272,6 @@ function mapCategoryToType($category)
 		default:
 			return 'mod';
 	}
-}
-
-function unwrapTagNames($tagsCached)
-{
-	// cached tags are stored as name,color,id\r\nname2,color2,id2 ... 
-	// This gets the names
-	return array_map(fn($s) => explode(',', $s)[0], explode("\r\n", trim($tagsCached)));
 }
 
 /** Echo a (modidstr -> (release object)) map for each modidstr with a release thats newer than the version specified in currentModVersions.

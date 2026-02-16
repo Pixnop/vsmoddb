@@ -386,7 +386,6 @@ function queryModSearch($searchParams)
 			a.name,
 			a.created,
 			a.lastModified,
-			a.tagsCached,
 			m.*,
 			l.cdnPath AS logoCdnPath,
 			l.created < '".SQL_MOD_CARD_TRANSITION_DATE."' AS hasLegacyLogo,

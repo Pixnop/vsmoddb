@@ -11,7 +11,6 @@ if(!defined("TESTING")) ErrorHandler::setupErrorHandling(); // TODO(Rennorb) @cl
 include($config["basepath"] . "lib/timezones.php");
 include($config["basepath"] . "lib/View.php");
 include($config["basepath"] . "lib/img.php");
-include($config["basepath"] . "lib/tags.php");
 include($config["basepath"] . "lib/3rdparty/adodb5/adodb-exceptions.inc.php");
 include($config["basepath"] . "lib/3rdparty/adodb5/adodb.inc.php");
 
