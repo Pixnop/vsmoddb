@@ -37,7 +37,7 @@ function listMod($modid)
 	$tagNames = $con->getCol(<<<SQL
 		SELECT t.name
 		FROM modTags mt
-		LEFT JOIN tags t ON t.tagId = mt.tagId
+		LEFT JOIN tags t ON t.tagId = mt.tagId and mt.votes >= 0
 		WHERE mt.modId = ?
 	SQL, array($modid));
 
@@ -225,7 +225,7 @@ function listMods()
 			left join modReleases r on r.modId = `mod`.modId
 			left join modReleaseRetractions rr on rr.releaseId = r.releaseId
 			left join files as logofileExternal on logofileExternal.fileId = mod.embedLogoFileId
-			left join modTags mt on mt.modId = mod.modId
+			left join modTags mt on mt.modId = mod.modId and mt.votes >= 0
 			left join tags t on t.tagId = mt.tagId
 		where rr.reason is null
 		" . (count($wheresql) ? " and " . implode(" and ", $wheresql) : "") . "

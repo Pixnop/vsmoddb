@@ -398,17 +398,6 @@ body.opaque-desc .mod .moddesc {
 
 
 
-.infobox {
-	float: left;
-
-	line-height: 25px;
-}
-
-.infobox.nomedia {
-	height: auto;
-}
-
-
 .stdtable {
 	border: 1px solid gray;
 	border-collapse: collapse;
@@ -444,7 +433,7 @@ body.opaque-desc .mod .moddesc {
 .text-success { color: #468847; }
 .text-info    { color: #3A87AD; }
 
-.text-weak { opacity: 0.7; }
+.text-weak { color: var(--color-text-weak); }
 
 /******** Tabs *******/
 
@@ -694,31 +683,6 @@ a.add:before {
 	position: relative;
 	top: -14px;
 	float: right;
-}
-
-
-
-.tags {
-	margin-top: 3px;
-	margin-bottom: 3px;
-}
-
-.tag {
-	padding: 1px 3px;
-	border-radius: 3px;
-	text-decoration: none;
-	color: #333;
-	background-color: #ccc;
-	border: 1px solid gray;
-	display: inline-block;
-	font-size: 90%;
-	line-height: 13px;
-}
-
-
-.tag:hover {
-	color: #333;
-	opacity: 0.5;
 }
 
 

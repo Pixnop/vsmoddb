@@ -99,34 +99,47 @@
 				{/if}
 			</div>
 
-			<div class="infobox{if empty($asset['trailerVideoUrl']) && empty($files)} nomedia{/if}">
-				<span class="text-weak">Tags:</span>
-				{foreach from=$tags item=tag}
-					<a href="/list/mod?tagids[]={$tag['tagId']}" class="tag" style="background-color:#{str_pad(dechex($tag['color']), 8, '0', STR_PAD_LEFT)}" title="{$tag['text']}">#{$tag['name']}</a>
-				{/foreach}
-				<br>
-
-				{if !empty($teamMembers)}
-					<span class="text-weak">Authors:</span>
-
-					<a class="username" href="/show/user/{$asset['creatorHash']}">{$asset['creatorName']}</a>{foreach from=$teamMembers item=teamMember}, <a class="username" href="/show/user/{$teamMember['userHash']}">{$teamMember['name']}</a>{/foreach}
+			<dl class="infobox{if empty($asset['trailerVideoUrl']) && empty($files)} nomedia{/if}">
+				<dt>Tags:</dt>
+				{if empty($user)}
+				<dd class="tags">
+					{if count($tags) > 8}<input type="checkbox" id="more-tags-trigger" autocomplete="off" />{/if}
+					{foreach from=$tags item=tag key=i}
+					<a href="/list/mod?tagids[]={$tag['tagId']}" class="tag{if $tag['votes'] < 0} downvoted{/if}{if $i >= 8} hidden{/if}" style="background-color:{$tag['color']}" title="{$tag['text']}">{$tag['name']}</a>
+					{/foreach}
+				</dd>
 				{else}
-					<span class="text-weak">Author:</span> <a class="username" href="/show/user/{$asset['creatorHash']}">{$asset['creatorName']}</a>
+				<dd class="tags votable">
+					{if count($tags) > 8}<input type="checkbox" id="more-tags-trigger" autocomplete="off" />{/if}
+					{foreach from=$tags item=tag key=i}
+					<span class="tag{if $tag['votes'] < 0} downvoted{/if}{if $i >= 8} hidden{/if}" style="background-color:{$tag['color']}" title="{$tag['text']}" data-tagid="{$tag['tagId']}" data-vote="{$tag['vote'] ?? 0}">
+						<a href="/list/mod?tagids[]={$tag['tagId']}">{$tag['name']}</a><span class="add"></span><span class="rem"></span>
+					</span>
+					{/foreach}
+					{if count($tags) > 8}<label for="more-tags-trigger">{count($tags) - 8}</label>{/if}
+					<a href="#" data-opens-dialog="add-tag-mdl" onclick="return false;">Add tags...</a>
+				</dd>
 				{/if}
 
-				<br>
+				{if !empty($teamMembers)}
+				<dt>Authors:</dt>
+				<dd><a class="username" href="/show/user/{$asset['creatorHash']}">{$asset['creatorName']}</a>{foreach from=$teamMembers item=teamMember}, <a class="username" href="/show/user/{$teamMember['userHash']}">{$teamMember['name']}</a>{/foreach}</dd>
+				{else}
+				<dt>Author:</dt><dd><a class="username" href="/show/user/{$asset['creatorHash']}">{$asset['creatorName']}</a></dd>
+				{/if}
 
-				<span class="text-weak">Side:</span> {ucfirst($asset['side'])}<br>
-				<span class="text-weak">Created:</span> {fancyDate($asset['created'])}<br>
-				<span class="text-weak">Last modified:</span> {fancyDate($asset['lastReleased'])}<br>
-				<span class="text-weak">Downloads:</span> {intval($asset['downloads'])}<br>
-				<a href="{if !empty($user)}#follow{else}/login{/if}"
-					class="interactbox {if $isFollowing}on{else}off{/if}">
-					<span class="off"><i class="bx bx-star"></i>Follow</span>
-					<span class="on"><i class="bx bxs-star"></i>Unfollow</span>
-					<span class="count">{$asset["follows"]}</span>
-				</a>
-				<p>
+				<dt>Side:</dt><dt>{ucfirst($asset['side'])}</dt>
+				<dt>Created:</dt><dt>{fancyDate($asset['created'])}</dt>
+				<dt>Last modified:</dt><dt>{fancyDate($asset['lastReleased'])}</dt>
+				<dt>Downloads:</dt><dt>{intval($asset['downloads'])}</dt>
+				<dd class="full-width">
+					<a href="{if !empty($user)}#follow{else}/login{/if}" class="interactbox {if $isFollowing}on{else}off{/if}">
+						<span class="off"><i class="bx bx-star"></i>Follow</span>
+						<span class="on"><i class="bx bxs-star"></i>Unfollow</span>
+						<span class="count">{$asset["follows"]}</span>
+					</a>
+				</dd>
+				<dd class="full-width">
 					{if $recommendedReleaseStable}
 						{if count($recommendedReleaseStable['compatibleGameVersions']) > 0}<strong>
 							{formatRecommendationAdjustedHint('Recommended', $recommendationIsInfluencedBySearch, $highestTargetVersion)}
@@ -156,8 +169,8 @@
 						<a class="button square ico-button mod-dl" href="{formatDownloadTrackingUrl($recommendedReleaseUnstable['file'])}">{htmlspecialchars($recommendedReleaseUnstable['file']['name'])}</a>
 						{if !empty($recommendedReleaseUnstable['identifier']) && $shouldShowOneClickInstall}&nbsp;{include file="button-one-click-install" release=$recommendedReleaseUnstable}{/if}
 					{/if}
-				</p>
-			</div>
+				</dd>
+			</dl>
 
 			<div style="clear:both;"><br></div>
 			{$assetraw['text']}
@@ -248,12 +261,31 @@
 
 	<div style="clear:both;"></div>
 
+	{if !empty($user)}
+	<dialog id="add-tag-mdl" autofocus="">
+		<form class="with-buttons-bottom" method="dialog" data-method="post" autocomplete="off" action="/api/v2/mods/{$asset['modId']}/tags">
+			<h1>Add Tags</h1>
+			<p>While anyone can add tags to mods, everyone is also allowed to vote wether or not the tag makes sense.</p>
+			<p>Tags that get downvoted will eventually be hidden, not show up in searches and get removed.</p>
+			<p>The tags you want to add, separated by comma (you can add arbitrary new tags):</p>
+			<input type="text" name="newTags" value="">
+			<input type="hidden" name="at" value="{$user['actionToken']}">
+			<div class="buttons">
+				<button class="button large submit shine" id="tag-subm" onclick="return false;">Add</button>
+				<button class="button large shine" style="margin-left:auto;" formmethod="dialog">Cancel</button>
+			</div>
+		</form>
+	</dialog>
+	{/if}
+
 
 {include file="comments"}
 
 {capture name="footerjs"}
 	<script nonce="{$cspNonce}" type="text/javascript">
 		modId = {$asset['modId']};
+
+		{if !empty($user)}attachTagVoteButtons(document.getElementsByClassName('tags votable')[0], R.get('add-tag-mdl'));{/if}
 
 		$(function() {
 			attachCommentHandlers();

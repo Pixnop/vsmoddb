@@ -8,7 +8,7 @@ $action = $urlparts[0];
 
 switch ($action) {
 	case "tags":
-		$tags = $con->getAll("select tagId, name, CONCAT('#', LPAD(HEX(color), 8, '0')) as color from tags order by name");
+		$tags = $con->getAll("select tagId as tagid, name, CONCAT('#', LPAD(HEX(color), 8, '0')) as color from tags order by name");
 		good(array("statuscode" => 200, "tags" => $tags));
 		break;
 		

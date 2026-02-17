@@ -1,3 +1,25 @@
+.infobox {
+	float: left;
+
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: .5em;
+
+	>dt {
+		color: var(--color-text-weak);
+	}
+	>.full-width {
+		grid-column: 1 / -1;
+	}
+}
+
+
+
+//
+// Releases table
+//
+
+
 // If this is a mod the table has the "for came version column
 // Mod Version | (For Game Version) | Downloads | Released | Changelog | Download | (1 click Installer)
 .release-table {

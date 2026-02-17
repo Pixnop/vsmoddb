@@ -99,3 +99,46 @@ function attachVersionSelectorHandlers(versionSelectorEl : HTMLDetailsElement) :
 		updateSelectedCounter();
 	})
 }
+
+function attachTagVoteButtons(tagsContainerEl : HTMLElement, addTagModalEl : HTMLDialogElement) : void
+{
+	tagsContainerEl.addEventListener('click', e => {
+		const buttonEl = e.target as Element;
+		if(!buttonEl || !buttonEl.classList) return;
+
+		const tagEl = buttonEl.parentElement!;
+		const tagId = tagEl.dataset.tagid;
+		if(!tagId) return;
+
+		const oldValue = tagEl.dataset.vote;
+		let newValue : number;
+		if(buttonEl.classList.contains('add')) {
+			newValue = tagEl.dataset.vote === '1' ? 0 : 1;
+		}
+		else if(buttonEl.classList.contains('rem')) {
+			newValue = tagEl.dataset.vote === '-1' ? 0 : -1;
+		}
+		else {
+			return;
+		}
+
+		tagEl.dataset.vote = String(newValue);
+		const xhr = $.ajax(`/api/v2/mods/${modId}/tags/${tagId}/vote`, { method: 'PUT', data: { at: actiontoken, vote: newValue } }) as jqXHR;
+		R.attachDefaultFailHandler(xhr, "Failed to vote")
+			.fail(() => tagEl.dataset.vote = oldValue); // Reset value in case of error.
+	})
+
+	attachDialogSendHandler(addTagModalEl, (form, data) => {
+		if(!data.get('newTags')) {
+			R.markAsErrorElement(form.querySelector('[name="newTags"]')!);
+			return false;
+		}
+		return true;
+	}, (jqXHR) => {
+		R.attachDefaultFailHandler(jqXHR, "Failed to add tag")
+			.done(() => {
+				addTagModalEl.close();
+				
+			});
+	});
+}

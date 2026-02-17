@@ -1,0 +1,96 @@
+.tag {
+	padding: .125em .25em;
+	border-radius: .25em;
+	background-color: #ccc;
+	border: 1px solid var(--color-border-tag);
+	display: inline-block;
+	font-size: 90%;
+	line-height: 13px;
+
+	user-select: none;
+
+	&, * {
+		text-decoration: none;
+		color: #333;
+	}
+
+	&:hover {
+		color: #333;
+		opacity: 0.5;
+	}
+
+	.add::after { content: '\FF0B' }
+	.rem::after { content: '\FF0D' }
+}
+
+.tags {
+	margin-top: .25em;
+	margin-bottom: .25em;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: .25em;
+
+	#more-tags-trigger {
+		display: none;
+
+		&:not(:checked)~.tag.hidden { display: none; }
+
+		&~label{
+			cursor: pointer;
+
+			&::before { content: 'Show '; }
+			&::after { content: ' more tags...'; }
+		}
+		&:checked~label{
+			&::before { content: 'Show '; }
+			&::after { content: ' less tags...'; }
+		}
+	}
+
+	&.votable {
+		.tag {
+			padding-right: 0;
+
+			//TODO(Rennorb) @cleanup: don't 'remove' the hover, only apply it if required.
+			&:hover {
+				color: unset;
+				opacity: unset;
+			}
+
+
+			&.downvoted {
+				filter: saturate(.4);
+
+				a { color: var(--color-text-weak); }
+			}
+
+			>a {
+				padding-right: .25em;
+				border-right: solid var(--color-border-tag) 1px;
+			}
+
+			>.add, >.rem {
+				cursor: pointer;
+
+				&:hover {
+					background-color: #3333;
+				}
+			}
+
+			&[data-vote="-1"] {
+				>.add { color: var(--color-text-weak); }
+				>.rem { font-weight: bold; }
+			}
+			&[data-vote="1"] {
+				>.add { font-weight: bold; }
+				>.rem { color: var(--color-text-weak); }
+			}
+		}
+
+		>a {
+			text-decoration: none;
+			color: var(--color-text);
+		}
+	}
+}

@@ -30,11 +30,14 @@ $asset = $con->getRow("
 if (!$asset) showErrorPage(HTTP_NOT_FOUND);
 
 $tags = $con->getAll(<<<SQL
-	SELECT t.tagId, t.name, t.color, t.text
+	SELECT t.tagId, t.name, CONCAT('#', LPAD(HEX(t.color), 8, '0')) AS color, t.text, mt.votes, mtv.vote
 	FROM modTags mt
 	LEFT JOIN tags t ON t.tagId = mt.tagId
+	LEFT JOIN modTagVotes mtv ON (mtv.modId, mtv.tagId, mtv.userId) = (mt.modId, mt.tagId, ?)
 	WHERE mt.modId = ?
-SQL, [$asset['modId']]);
+	ORDER BY mt.votes DESC
+SQL, [$user['userId'] ?? 0, $asset['modId']]);
+$view->assign("tags", $tags);
 
 $teamMembers = $con->getAll(<<<SQL
 	SELECT u.userId, u.name, HEX(u.hash) AS userHash
@@ -113,8 +116,6 @@ foreach ($comments as &$comment) {
 unset($comment);
 
 $view->assign("comments", $comments, null, true);
-
-$view->assign("tags", $tags);
 
 $releases = $con->getAll(<<<SQL
 	SELECT

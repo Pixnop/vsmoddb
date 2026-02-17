@@ -222,11 +222,26 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `modTags` (
   `modId`        INT       NOT NULL,
   `tagId`        INT       NOT NULL,
+  `votes`        INT       NOT NULL DEFAULT 0,
   `created`      DATETIME  NOT NULL DEFAULT NOW(),
   `lastModified` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`modId`, `tagId`),
   CONSTRAINT `FK_modTags_modId` FOREIGN KEY (`modId`) REFERENCES `mods`(`modId`) ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT `FK_modTags_tagId` FOREIGN KEY (`tagId`) REFERENCES `tags`(`tagId`) ON UPDATE CASCADE ON DELETE CASCADE
+)
+ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS `modTagVotes` (
+  `modId`        INT        NOT NULL,
+  `tagId`        INT        NOT NULL,
+  `userId`       INT        NOT NULL,
+  `vote`         TINYINT    NOT NULL,
+  `created`      DATETIME   NOT NULL DEFAULT NOW(),
+  `lastModified` TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`modId`, `tagId`, `userId`),
+  CONSTRAINT `FK_modTagVotes_modId` FOREIGN KEY (`modId`) REFERENCES `mods`(`modId`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `FK_modTagVotes_tagId` FOREIGN KEY (`tagId`) REFERENCES `tags`(`tagId`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `FK_modTagVotes_userId` FOREIGN KEY (`userId`) REFERENCES `users`(`userId`) ON UPDATE CASCADE ON DELETE CASCADE
 )
 ENGINE = InnoDB;
 

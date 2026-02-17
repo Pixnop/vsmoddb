@@ -1,6 +1,7 @@
 :root {
 	--color-content-bg: hsl(42 100% 98%);
 	--color-text: #333;
+	--color-text-weak: #6f6f6f;
 	--color-text-inv: white;
 	--c-accent: 30 19%;
 	--color-accent: hsl(var(--c-accent) 10%);
@@ -13,6 +14,7 @@
 	--color-input-disabled: hsl(0 0% 85%);
 	--color-input-text-disabled:hsl(0 0% 43%);
 	--color-border: #aaa;
+	--color-border-tag: gray;
 	--color-border-active: #333;
 	--color-link: #3d6594;
 	--color-link-active: #608CBE;

@@ -5,7 +5,7 @@
 if(count($urlparts) < 2)   fail(HTTP_BAD_REQUEST);
 
 $modId = filter_var($urlparts[0], FILTER_VALIDATE_INT);
-if($modId === false) fail(HTTP_BAD_REQUEST, ['reason' => 'Malformed query param.']);
+if($modId === false) fail(HTTP_BAD_REQUEST, ['reason' => 'Malformed query param modid.']);
 
 switch($urlparts[1]) {
 	case 'comments':
@@ -142,7 +142,7 @@ switch($urlparts[1]) {
 
 					case 'PUT':
 						list($_POST, $_) = request_parse_body();
-						if($_POST['at'] && empty($_REQUEST['at'])) $_REQUEST['at'] = $_POST['at'];
+						if(!empty($_POST['at']) && empty($_REQUEST['at'])) $_REQUEST['at'] = $_POST['at'];
 
 						validateUserNotBanned();
 						validateActionTokenAPI();
@@ -183,7 +183,7 @@ switch($urlparts[1]) {
 						validateMethod('PUT');
 
 						list($_POST, $_) = request_parse_body();
-						if($_POST['at'] && empty($_REQUEST['at'])) $_REQUEST['at'] = $_POST['at'];
+						if(!empty($_POST['at']) && empty($_REQUEST['at'])) $_REQUEST['at'] = $_POST['at'];
 
 						validateUserNotBanned();
 						validateActionTokenAPI();
@@ -262,5 +262,55 @@ switch($urlparts[1]) {
 						if($ok) good();
 						else fail(HTTP_INTERNAL_ERROR, ['error' => 'Internal database error.']);
 				}
+		}
+
+	case 'tags':
+		if(count($urlparts) === 4 && $urlparts[3] === 'vote') { // {modid}/tags/{tagid}/vote
+			validateMethod('PUT');
+
+			list($_POST, $_) = request_parse_body();
+			if(!empty($_POST['at']) && empty($_REQUEST['at'])) $_REQUEST['at'] = $_POST['at'];
+
+			validateUserNotBanned();
+			validateActionTokenAPI();
+
+			$tagId = filter_var($urlparts[2], FILTER_VALIDATE_INT);
+			if($tagId === false) fail(HTTP_BAD_REQUEST, ['reason' => 'Malformed query param tagid.']);
+
+			$vote = filter_input(INPUT_POST, 'vote', FILTER_VALIDATE_INT);
+			if($vote === null) fail(HTTP_BAD_REQUEST, ['reason' => 'Missing post param vote.']);
+			if($vote === false || $vote < -1 || $vote > 1) fail(HTTP_BAD_REQUEST, ['reason' => 'Malformed post param vote.']);
+
+			$con->startTrans();
+
+			//NOTE(Rennorb): If we update we also need to remove the previous vote - we cannot just votes + new vote.
+			// Doing so would cause desyncing when going from -1 to +1 (or vice versa), as -1 + +1 = 0 instead of the +1 it should be.
+			// @perf: This might be bad performance wise, but i couldn't determine anything concrete. need to keep an eye out.
+			$con->execute(<<<SQL
+				UPDATE modTags
+				SET votes = votes - IFNULL((SELECT vote FROM modTagVotes WHERE (modId, tagId, userId) = ($modId, $tagId, {$user['userId']}) LIMIT 1), 0) + $vote
+				WHERE (modId, tagId) = ($modId, $tagId)
+			SQL); // @security: All of these values are filtered to be integers, and therefore sql inert.
+
+			if(!$con->affected_rows()) {
+				// In the case this tag didn't already exist on the mod, and the vote is positive, add it.
+				//NOTE(Rennorb): We do this separately because update should be the very common case, but there is no update or insert, only insert or update. 
+				if($vote > 0) {
+					// @security: All of these values are filtered to be integers, and therefore sql inert.
+					$con->execute("INSERT INTO modTags (modId, tagId, votes) VALUES ($modId, $tagId, $vote)");
+				}
+			}
+
+			// Update this table after the modTags table so we still have the old update for that 
+			$con->execute(<<<SQL
+				INSERT INTO modTagVotes (modId, tagId, userId, vote)
+					VALUES ($modId, $tagId, {$user['userId']}, $vote)
+				ON DUPLICATE KEY UPDATE
+					vote = VALUES(vote)
+			SQL); // @security: All of these values are filtered to be integers, and therefore sql inert.
+
+			$con->completeTrans();
+
+			good();
 		}
 }

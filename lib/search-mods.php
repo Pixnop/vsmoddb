@@ -250,7 +250,7 @@ function queryModSearch($searchParams)
 				break;
 
 			case 'tags':
-				$joinClauses .= 'JOIN modTags t ON t.modId = m.modId AND t.tagId IN ('.implode(',', $value).')'; // @security: $value must be sql safe (validateModSearchInputs does that)
+				$joinClauses .= 'JOIN modTags t ON t.modId = m.modId AND t.tagId IN ('.implode(',', $value).') AND t.votes >= 0'; // @security: $value must be sql safe (validateModSearchInputs does that)
 				break;
 
 			case 'gameversions':
