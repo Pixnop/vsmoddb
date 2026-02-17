@@ -21,10 +21,10 @@
 			</select>
 		</span>
 
-		<span data-label="Tags">
-			<select style="width:20em;" name="tagids[]" multiple>
-				{foreach from=$tags item=tag}
-					<option value="{$tag['tagId']}" title="{$tag['text']}"{if isset($selectedParams['tags'][$tag['tagId']])} selected="selected"{/if}>{$tag['name']}</option>
+		<span id="tags-box" data-label="Tags">
+			<select style="width:20em;" name="tagids[]" multiple data-placeholder="Search Tags" data-url="/api/v2/tags/by-name/\{name}">
+				{foreach from=$selectedParams['tags'] item=tag}
+					<option value="{$tag['tagId']}" title="{$tag['text']}" selected="selected">{$tag['name']}</option>
 				{/foreach}
 			</select>
 		</span>
@@ -151,7 +151,10 @@
 			}
 		});
 
-		$(() => attachUserSearchHandler(document.getElementById('contributor-box')));
+		$(() => \{
+			attachRemoteSearchHandler(document.getElementById('contributor-box'));
+			attachRemoteSearchHandler(document.getElementById('tags-box'));
+		});
 
 		let fetchCursor = '{$fetchCursorJS}';
 		const scrollTrigger = document.getElementById('scroll-trigger');

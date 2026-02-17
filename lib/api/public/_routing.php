@@ -1,6 +1,11 @@
 <?php
 
 switch($urlparts[0]) {
+	case 'tags':
+		array_shift($urlparts);
+		include(__DIR__ . '/tags.php');
+		break;
+
 	case 'users':
 		array_shift($urlparts);
 		include(__DIR__ . '/users.php');

@@ -80,7 +80,7 @@
 			<div id="teammembers-box" class="editbox wide pending-markers">
 				<label>Team Members</label>
 				<select name="teammemberids[]" multiple data-placeholder="Search Users"
-					data-url="/api/v2/users/by-name/\{name}" data-ownerid="{$mod['createdByUserId']}">
+					data-url="/api/v2/users/by-name/\{name}" data-ignore-id="{$mod['createdByUserHash']}">
 					{if !empty($teamMembers)}
 						{foreach from=$teamMembers item=teamMember}
 							<option selected class="maybe-accepted{if !$teamMember['pending']} accepted{/if}" value="{$teamMember['hash']}" title="{$teamMember['name']}">{$teamMember['name']}</option>
@@ -256,7 +256,7 @@
 	<script nonce="{$cspNonce}" type="text/javascript">
 		const modId = {$mod['modId'] ?? 0};
 		
-		{if $canEditTeamMembers}R.onDOMLoaded(() => attachUserSearchHandler(R.get('teammembers-box')));{/if}
+		{if $canEditTeamMembers}R.onDOMLoaded(() => attachRemoteSearchHandler(R.get('teammembers-box')));{/if}
 
 		{if $mod['modId'] && canModerate(null, $user)}
 		R.onDOMLoaded(() => { createEditor(R.getQ('#lock-mdl textarea'), tinymceSettingsCmt) });

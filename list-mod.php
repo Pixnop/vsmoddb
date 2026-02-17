@@ -38,9 +38,15 @@ $selectedParams = [
 		: [],
 	'majorversion' => $filters['majorversion'] ?? '',
 	'gameversions' => !empty($filters['gameversions']) ? array_flip($filters['gameversions']) : [],
-	'tags'  => !empty($filters['tags']) ? array_flip($filters['tags']) : [],
+	'tags'  => [],
 	'stati' => !empty($filters['stati']) ? array_flip($filters['stati']) : [ STATUS_RELEASED => true, STATUS_LOCKED => true ],
 ];
+
+if(!empty($filters['tags'])) {
+	$foldedTagIds = implode(',', $filters['tags']); // @security: $filters['tags'] are filtered to be integers, therefore sql inert.
+	$selectedParams['tags'] = $con->getAll("SELECT tagId, `name`, `text` FROM tags WHERE tagId IN ($foldedTagIds) ORDER BY `name`");
+}
+
 unset($filters);
 
 $strippedQuery = stripQueryParams(parse_url($_SERVER['REQUEST_URI'], PHP_URL_QUERY), ['sortby', 'sortdir']);
@@ -63,9 +69,8 @@ foreach($gameVersions as &$version) {
 }
 unset($version);
 
-$tags = $con->getAll('SELECT tagId, `name`, `text` FROM tags ORDER BY `name`');
 
-cspReplaceAllowedFetchSources("{$_SERVER['HTTP_HOST']}/list/mod {$_SERVER['HTTP_HOST']}/api/v2/users/by-name/");
+cspReplaceAllowedFetchSources("{$_SERVER['HTTP_HOST']}/list/mod {$_SERVER['HTTP_HOST']}/api/v2/users/by-name/ {$_SERVER['HTTP_HOST']}/api/v2/tags/by-name/");
 
 $view->assign('headerHighlight', $selectedParams['category'] === 's' ? HEADER_HIGHLIGHT_TWEAKS : HEADER_HIGHLIGHT_MODS, null, true);
 $view->assign('selectedParams', $selectedParams, null, true);
@@ -74,6 +79,5 @@ $view->assign('fetchCursorJS', $fetchCursorJS, null, true);
 $view->assign('sortOptions', VALID_ORDER_BY_COLUMNS, null, true);
 $view->assign('gameVersions', $gameVersions);
 $view->assign('majorGameVersions', $majorGameVersions);
-$view->assign('tags', $tags);
 $view->assign('mods', $mods);
 $view->display('list-mod');

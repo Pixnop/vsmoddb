@@ -262,13 +262,16 @@
 	<div style="clear:both;"></div>
 
 	{if !empty($user)}
-	<dialog id="add-tag-mdl" autofocus="">
+	<dialog id="add-tag-mdl">
 		<form class="with-buttons-bottom" method="dialog" data-method="post" autocomplete="off" action="/api/v2/mods/{$asset['modId']}/tags">
 			<h1>Add Tags</h1>
 			<p>While anyone can add tags to mods, everyone is also allowed to vote wether or not the tag makes sense.</p>
 			<p>Tags that get downvoted will eventually be hidden, not show up in searches and get removed.</p>
 			<p>The tags you want to add, separated by comma (you can add arbitrary new tags):</p>
-			<input type="text" name="newTags" maxlength="255" value="">
+			<div id="tag-input-wrap">
+				<input type="text" name="newTags" maxlength="255" value="" autofocus>
+				<div></div>
+			</div>
 			<input type="hidden" name="at" value="{$user['actionToken']}">
 			<div class="buttons">
 				<button class="button large submit shine" id="tag-subm" onclick="return false;">Add</button>

@@ -1,4 +1,4 @@
-function attachUserSearchHandler(scopeEl : HTMLElement) : void
+function attachRemoteSearchHandler(scopeEl : HTMLElement) : void
 {
 	let waitTimeout : number|null = null, lastWaitTimeout : number|null = null;
 
@@ -7,9 +7,10 @@ function attachUserSearchHandler(scopeEl : HTMLElement) : void
 
 	const urlTemplate = select.dataset.url;
 	if(!urlTemplate) {
-		console.warn("attachUserSearchHandler called on an element who's select does not have a url in its dataset.");
+		console.warn("attachRemoteSearchHandler called on an element who's select does not have a url in its dataset.");
 		return
 	}
+	const ignoreId = select.dataset.ignoreId;
 
 	input.addEventListener('keydown', e => {
 		if(waitTimeout !== null)  clearTimeout(waitTimeout);
@@ -32,11 +33,12 @@ function attachUserSearchHandler(scopeEl : HTMLElement) : void
 					return;
 				}
 
-				const currentUserIds = $(select).val();
+				const selectedIds = $(select).val();
 				select.replaceChildren(...Array.from(select.querySelectorAll('option:checked')));
 
 				for(const [id, name] of Object.entries(authors as Object)) {
-					if(currentUserIds != null && currentUserIds.includes(id))  continue;
+					if(selectedIds != null && selectedIds.includes(id))  continue;
+					if(id === ignoreId) continue;
 
 					const opt = document.createElement('option');
 					opt.value = id; opt.textContent = name;
@@ -128,7 +130,64 @@ function attachTagVoteButtons(tagsContainerEl : HTMLElement, addTagModalEl : HTM
 			.fail(() => tagEl.dataset.vote = oldValue); // Reset value in case of error.
 	})
 
-	const input = addTagModalEl.querySelector<HTMLInputElement>('[name="newTags"]')!;
+	const inputWrapEl = document.getElementById('tag-input-wrap')!;
+	const input = inputWrapEl.getElementsByTagName('input')[0];
+	const optionsWrapEl = inputWrapEl.lastElementChild!;
+
+	let waitTimeout : number|null = null, lastWaitTimeout : number|null = null;
+
+	input.addEventListener('keydown', e => {
+		if(waitTimeout !== null)  clearTimeout(waitTimeout);
+
+		lastWaitTimeout = waitTimeout;
+		waitTimeout = setTimeout(() => {
+			const inputText = input.value;
+			const search = inputText.slice(inputText.lastIndexOf(',') + 1).trim();
+			if(!search) {
+				waitTimeout = null;
+				return;
+			}
+
+			const timeoutRef = lastWaitTimeout;
+			$.get('/api/v2/tags/by-name/'+search, (authors : Object) => {
+				if(lastWaitTimeout !== timeoutRef)  return;
+
+				if(!authors) {
+					waitTimeout = null;
+					return;
+				}
+
+				optionsWrapEl.replaceChildren();
+				for(const [_, name] of Object.entries(authors as Object)) {
+					const opt = R.make('div.tag-option', name); // Don't even bother with the id, we need to handle the name case and deduplication anyways.
+					optionsWrapEl.append(opt);
+				}
+
+				waitTimeout = null;
+			});
+
+		}, 500);
+	});
+
+	//TODO(Rennorb) @completeness: keyboard nav
+
+	const addTagToInput = (tagName : string) => {
+		const inputText = input.value;
+		let lastCommaIndex = inputText.lastIndexOf(',');
+		if(lastCommaIndex !== -1 && inputText.length > lastCommaIndex && inputText[lastCommaIndex + 1] === ' ') lastCommaIndex++; // go to after the space in the ', ' separator.
+		const previousTags = inputText.slice(0, lastCommaIndex + 1); // removes everything after the last coma (the currently being typed portion)
+		input.value = previousTags + tagName + ', ';
+	}
+
+	optionsWrapEl.addEventListener('click', e => {
+		const targetEl = e.target as Element;
+		if(!targetEl || !targetEl.classList || !targetEl.classList.contains('tag-option')) return;
+
+		addTagToInput(targetEl.textContent!)
+		optionsWrapEl.replaceChildren();
+		input.focus(); // put the focus back after an option has been clicked
+	});
+
 	attachDialogSendHandler(addTagModalEl, (form, data) => {
 		const newTags = data.get('newTags') as string|null;
 		if(!newTags) {

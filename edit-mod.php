@@ -17,13 +17,14 @@ if(isset($_GET['assetid'])) {
 
 	// @security: $assetId is known to be an integer and therefore sql inert.
 	$mod = $con->getRow(<<<SQL
-		SELECT m.modId, m.assetId, a.name, m.urlAlias, m.summary, a.text, a.statusId, m.category, m.side, a.createdByUserId,
+		SELECT m.modId, m.assetId, a.name, m.urlAlias, m.summary, a.text, a.statusId, m.category, m.side, a.createdByUserId, HEX(author.hash) as createdByUserHash,
 			m.homepageUrl, m.sourceCodeUrl, m.trailerVideoUrl, m.issueTrackerUrl, m.wikiUrl, m.donateUrl, m.created,
 			m.cardLogoFileId, fileDb.cdnPath AS logoCdnPath,
 			m.embedLogoFileId, fileExternal.cdnPath AS logoCdnPathExternal,
 			m.uploadLimitOverwrite
 		FROM mods m
 		JOIN assets a ON a.assetId = m.assetId
+		JOIN users author ON author.userId = a.createdByUserId
 		LEFT JOIN files AS fileDb ON fileDb.fileId = m.cardLogoFileId
 		LEFT JOIN files AS fileExternal ON fileExternal.fileId = m.embedLogoFileId
 		WHERE m.assetId = $assetId
@@ -81,7 +82,7 @@ else { // New mod
 		'issueTrackerUrl' => null,
 		'wikiUrl'         => null,
 		'donateUrl'       => null,
-		'createdByUserId' => $user['userId'],
+		'createdByUserHash' => $user['hash'],
 		'cardLogoFileId'  => null,
 		'embedLogoFileId' => null,
 		'tags'            => [],

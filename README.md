@@ -278,6 +278,13 @@ String example: http://mods.vintagestory.at/api/mod/carrycapacity
 	- `400`: Argument is malformed.
 	- `200`: Successfully unfollowed if mod was followed.
 
+### /api/v2/tags/by-name/{search}
+- `get`:
+	- Args:
+		- Path arg `{search}`
+		- `limit`: Optional result count limit between 1 and 200 inclusive. Defaults to 10.
+	- `200`: string - string dictionary, where keys are tag ids and values are tag names.
+
 ### /api/v2/game-versions
 - `get`: (currently also `auth` TODO(Rennorb) @bug)
 	- `200`: Returns string array of available game-versions in descending order.
