@@ -82,6 +82,7 @@ else { // New mod
 		'issueTrackerUrl' => null,
 		'wikiUrl'         => null,
 		'donateUrl'       => null,
+		'createdByUserId' => $user['userId'],
 		'createdByUserHash' => $user['hash'],
 		'cardLogoFileId'  => null,
 		'embedLogoFileId' => null,
