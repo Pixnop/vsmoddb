@@ -268,7 +268,7 @@
 			<p>While anyone can add tags to mods, everyone is also allowed to vote wether or not the tag makes sense.</p>
 			<p>Tags that get downvoted will eventually be hidden, not show up in searches and get removed.</p>
 			<p>The tags you want to add, separated by comma (you can add arbitrary new tags):</p>
-			<input type="text" name="newTags" value="">
+			<input type="text" name="newTags" maxlength="255" value="">
 			<input type="hidden" name="at" value="{$user['actionToken']}">
 			<div class="buttons">
 				<button class="button large submit shine" id="tag-subm" onclick="return false;">Add</button>

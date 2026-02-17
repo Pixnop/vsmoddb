@@ -206,6 +206,16 @@ String example: http://mods.vintagestory.at/api/mod/carrycapacity
 	- `403`: The authenticated user is not allowed to lock mods, or is currently restricted.
 	- `200`: Mod was successfully locked.
 
+### /api/v2/mods/{modid}/tags `auth` `at`
+- `post`:
+	- Args:
+		- Path arg `{modid}`
+		- Post arg `tags[]`: names of the tags to be added. These do not need to exist yet.
+	- `400`: Invalid action token or malformed request.
+	- `404`: Target mod does not exist.
+	- `403`: The authenticated user is currently restricted.
+	- `200`: Tags successfully added.
+
 ### /api/v2/mods/{modid}/tags/{tagid}/vote `auth` `at`
 - `put`:
 	- Args:

@@ -24,6 +24,8 @@ IF EXISTS( (SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='moddb' 
 		CONSTRAINT `FK_modTagVotes_userId` FOREIGN KEY (`userId`) REFERENCES `users`(`userId`) ON UPDATE CASCADE ON DELETE CASCADE
 	)
 	ENGINE = InnoDB;
+
+	ALTER TABLE `tags` ADD UNIQUE INDEX `name` (`name`);
 END IF;
 
 

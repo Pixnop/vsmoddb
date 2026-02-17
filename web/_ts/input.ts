@@ -128,17 +128,52 @@ function attachTagVoteButtons(tagsContainerEl : HTMLElement, addTagModalEl : HTM
 			.fail(() => tagEl.dataset.vote = oldValue); // Reset value in case of error.
 	})
 
+	const input = addTagModalEl.querySelector<HTMLInputElement>('[name="newTags"]')!;
 	attachDialogSendHandler(addTagModalEl, (form, data) => {
-		if(!data.get('newTags')) {
-			R.markAsErrorElement(form.querySelector('[name="newTags"]')!);
+		const newTags = data.get('newTags') as string|null;
+		if(!newTags) {
+			R.markAsErrorElement(input);
 			return false;
 		}
+
+		data.delete('newTags');
+		for(let tag of newTags.split(',')) {
+			tag = tag.trim();
+			if(tag) data.append('tags[]', tag);
+		}
+
 		return true;
 	}, (jqXHR) => {
 		R.attachDefaultFailHandler(jqXHR, "Failed to add tag")
-			.done(() => {
-				addTagModalEl.close();
+			//NOTE(Rennorb): No optimistic prediction here for now, rewinding that would get very ugly very quickly.
+			.done((response) => {
+				addTagModalEl.getElementsByTagName('button')[0].disabled = false;
+				input.value = '';
+
+				let insertPoint = tagsContainerEl.lastElementChild!.previousElementSibling!;
+				while(insertPoint.previousElementSibling && insertPoint.previousElementSibling.classList.contains('downvoted'))
+					insertPoint = insertPoint.previousElementSibling; // move to before the downvoted tags
 				
+				for(const [tagId, tag] of Object.entries<any>(response)) {
+					// If this tag already exists only update our vote for it:
+					const existingTagEl = tagsContainerEl.querySelector<HTMLElement>(`.tag[data-tagid="${tagId}"]`);
+					if(existingTagEl) {
+						existingTagEl.dataset.vote = "1";
+						continue;
+					}
+
+					// Ok, this is a tag that is new (to us). Add it clientside:
+					const linkEl = R.make<HTMLAnchorElement>('a', tag.name);
+					linkEl.href = '/list/mod?tagids[]='+tagId;
+
+					const tagEl = R.make('span.tag', linkEl, R.make('span.add'), R.make('span.rem'));
+					tagEl.style.backgroundColor = tag.color;
+					tagEl.dataset.tagid = tagId;
+					tagEl.dataset.vote = "1"; // always our vote
+
+					tagsContainerEl.insertBefore(tagEl, insertPoint);
+				}
 			});
+		addTagModalEl.close();
 	});
 }

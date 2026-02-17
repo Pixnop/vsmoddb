@@ -265,6 +265,66 @@ switch($urlparts[1]) {
 		}
 
 	case 'tags':
+		if(count($urlparts) === 2) {
+			validateMethod('POST');
+			validateUserNotBanned();
+			validateActionTokenAPI();
+
+			$tags = filter_input(INPUT_POST, 'tags', FILTER_UNSAFE_RAW, FILTER_FORCE_ARRAY);
+			if($tags === null) fail(HTTP_BAD_REQUEST, ['reason' => 'Missing post param tags.']);
+
+			$tags = array_filter(array_map('trim', $tags));
+			if(empty($tags)) fail(HTTP_BAD_REQUEST, ['reason' => 'Malformed post param tags.']);
+
+			$response = [];
+
+			$con->startTrans();
+
+			$preparedTagInsert = $con->prepare("
+				INSERT INTO tags (kind, name, text, color)
+					VALUES (".TAG_KIND_USER_DEFINED.", ?, '', 0x92C96AFF)
+				ON DUPLICATE KEY UPDATE
+					tagId = LAST_INSERT_ID(tagId) -- fix to be able to read the last insert id
+			");
+
+			foreach($tags as $tagName) {
+				$con->execute($preparedTagInsert, [$tagName]);
+				$response[$con->insert_ID()] = ['name' => $tagName, 'color' => '#92C96AFF'];
+			}
+
+			
+			// 1 - vote == -vote + 1, removes the old vote and sets it to 1
+			$voteDiffsFromThisUser = $con->getAssoc("SELECT tagId, 1 - vote FROM modTagVotes WHERE modId = $modId AND  userId = {$user['userId']}");
+
+			$foldedValues = '';
+			foreach(array_keys($response) as $tagId) {
+				if($foldedValues) $foldedValues .= ',';
+				$newVoteOrDiff = $voteDiffsFromThisUser[$tagId] ?? 1;
+				$foldedValues .= "($modId, $tagId, $newVoteOrDiff)";
+			}
+
+			// :TagUpdateOrder
+			$con->execute(<<<SQL
+				INSERT INTO modTags (modId, tagId, votes)
+					VALUES $foldedValues
+				ON DUPLICATE KEY UPDATE
+					votes = votes + VALUES(votes)
+			SQL); // @security: All of these values are filtered to be integers, and therefore sql inert.
+
+			$foldedValues = implode(",", array_map(fn($tagId) => "($modId, $tagId, {$user['userId']}, 1)", array_keys($response)));
+
+			// :TagUpdateOrder
+			$con->execute(<<<SQL
+				INSERT INTO modTagVotes (modID, tagId, userId, vote)
+					VALUES $foldedValues
+				ON DUPLICATE KEY UPDATE
+					vote = VALUES(vote)
+			SQL); // @security: All of these values are filtered to be integers, and therefore sql inert.
+
+			$ok = $con->completeTrans();
+			if($ok) good($response, JSON_FORCE_OBJECT);
+			else fail(HTTP_INTERNAL_ERROR, ['error' => 'Internal database error.']);
+		}
 		if(count($urlparts) === 4 && $urlparts[3] === 'vote') { // {modid}/tags/{tagid}/vote
 			validateMethod('PUT');
 
@@ -284,7 +344,7 @@ switch($urlparts[1]) {
 			$con->startTrans();
 
 			//NOTE(Rennorb): If we update we also need to remove the previous vote - we cannot just votes + new vote.
-			// Doing so would cause desyncing when going from -1 to +1 (or vice versa), as -1 + +1 = 0 instead of the +1 it should be.
+			// Doing so would cause desyncing when going from -1 to +1 (or vice versa), as -1 + +1 = 0 instead of the +1 it should be. :TagUpdateOrder
 			// @perf: This might be bad performance wise, but i couldn't determine anything concrete. need to keep an eye out.
 			$con->execute(<<<SQL
 				UPDATE modTags
@@ -294,14 +354,14 @@ switch($urlparts[1]) {
 
 			if(!$con->affected_rows()) {
 				// In the case this tag didn't already exist on the mod, and the vote is positive, add it.
-				//NOTE(Rennorb): We do this separately because update should be the very common case, but there is no update or insert, only insert or update. 
+				//NOTE(Rennorb): We do this separately because update should be the very common case, but there is no update or insert, only insert or update.
 				if($vote > 0) {
 					// @security: All of these values are filtered to be integers, and therefore sql inert.
 					$con->execute("INSERT INTO modTags (modId, tagId, votes) VALUES ($modId, $tagId, $vote)");
 				}
 			}
 
-			// Update this table after the modTags table so we still have the old update for that 
+			// Update this table after the modTags table so we still have the old update for that. :TagUpdateOrder
 			$con->execute(<<<SQL
 				INSERT INTO modTagVotes (modId, tagId, userId, vote)
 					VALUES ($modId, $tagId, {$user['userId']}, $vote)
@@ -309,8 +369,8 @@ switch($urlparts[1]) {
 					vote = VALUES(vote)
 			SQL); // @security: All of these values are filtered to be integers, and therefore sql inert.
 
-			$con->completeTrans();
-
-			good();
+			$ok = $con->completeTrans();
+			if($ok) good();
+			else fail(HTTP_INTERNAL_ERROR, ['error' => 'Internal database error.']);
 		}
 }
