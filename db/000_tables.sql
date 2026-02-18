@@ -174,8 +174,8 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `tags` (
   `tagId`        INT          NOT NULL AUTO_INCREMENT,
   `kind`         TINYINT      NOT NULL,
-  `name`         VARCHAR(255) NOT NULL,
-  `text`         TEXT         NOT NULL,
+  `name`         VARCHAR(255) CHARACTER SET utf8mb4 NOT NULL,
+  `text`         TEXT         CHARACTER SET utf8mb4 NOT NULL,
   `color`        INT UNSIGNED NOT NULL,
   `created`      DATETIME     NOT NULL DEFAULT NOW(),
   `lastModified` TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

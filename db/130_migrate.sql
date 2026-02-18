@@ -26,6 +26,8 @@ IF EXISTS( (SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='moddb' 
 	ENGINE = InnoDB;
 
 	ALTER TABLE `tags` ADD UNIQUE INDEX `name` (`name`);
+	ALTER TABLE `tags` MODIFY `name` VARCHAR(255) CHARACTER SET utf8mb4 NOT NULL;
+  ALTER TABLE `tags` MODIFY `text` TEXT         CHARACTER SET utf8mb4 NOT NULL;
 END IF;
 
 
