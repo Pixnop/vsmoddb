@@ -250,22 +250,22 @@ function queryModSearch($searchParams)
 				break;
 
 			case 'tags':
-				$joinClauses .= 'JOIN modTags t ON t.modId = m.modId AND t.tagId IN ('.implode(',', $value).') AND t.votes >= 0'; // @security: $value must be sql safe (validateModSearchInputs does that)
+				$joinClauses .= 'JOIN modTags t ON t.modId = m.modId AND t.tagId IN ('.implode(',', $value).') AND t.votes >= 0 '; // @security: $value must be sql safe (validateModSearchInputs does that)
 				break;
 
 			case 'gameversions':
-				$joinClauses .= 'JOIN modCompatibleGameVersionsCached mcv ON mcv.modId = m.modId AND mcv.gameVersion IN ('.implode(',', $value).')'; // @security: $value must be sql safe (validateModSearchInputs does that)
+				$joinClauses .= 'JOIN modCompatibleGameVersionsCached mcv ON mcv.modId = m.modId AND mcv.gameVersion IN ('.implode(',', $value).') '; // @security: $value must be sql safe (validateModSearchInputs does that)
 				break;
 
 			case 'majorversion':
-				$joinClauses .= 'JOIN modCompatibleMajorGameVersionsCached mcmv ON mcmv.modId = m.modId AND mcmv.majorGameVersion = ?';
+				$joinClauses .= 'JOIN modCompatibleMajorGameVersionsCached mcmv ON mcmv.modId = m.modId AND mcmv.majorGameVersion = ? ';
 				array_splice($sqlParams, $joinParamsOffset, 0, $value);
 				$joinParamsOffset++;
 				break;
 
 			case 'contributor':
 				// team members
-				$joinClauses .= 'LEFT JOIN modTeamMembers tm ON tm.modId = m.modId AND tm.userId = (SELECT userId FROM users tu WHERE tu.hash = UNHEX(?))';
+				$joinClauses .= 'LEFT JOIN modTeamMembers tm ON tm.modId = m.modId AND tm.userId = (SELECT userId FROM users tu WHERE tu.hash = UNHEX(?)) ';
 				array_splice($sqlParams, $joinParamsOffset, 0, $value);
 				$joinParamsOffset++;
 

@@ -265,7 +265,7 @@
 	<dialog id="add-tag-mdl">
 		<form class="with-buttons-bottom" method="dialog" data-method="post" autocomplete="off" action="/api/v2/mods/{$asset['modId']}/tags">
 			<h1>Add Tags</h1>
-			<p>While anyone can add tags to mods, everyone is also allowed to vote wether or not the tag makes sense.</p>
+			<p>While anyone can add tags to mods, everyone is also allowed to vote whether or not the tag makes sense.</p>
 			<p>Tags that get downvoted will eventually be hidden, not show up in searches and get removed.</p>
 			<p>The tags you want to add, separated by comma (you can add arbitrary new tags):</p>
 			<div id="tag-input-wrap">
