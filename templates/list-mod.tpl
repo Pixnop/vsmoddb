@@ -24,7 +24,7 @@
 		<span id="tags-box" data-label="Tags">
 			<select style="width:20em;" name="tagids[]" multiple data-placeholder="Search Tags" data-url="/api/v2/tags/by-name/\{name}">
 				{foreach from=$selectedParams['tags'] item=tag}
-					<option value="{$tag['tagId']}" title="{$tag['text']}" selected="selected">{$tag['name']}</option>
+					<option value="{$tag['tagId']}" title="{htmlspecialchars($tag['text'], encoding: 'UTF-8')}" selected="selected">{htmlspecialchars($tag['name'], encoding: 'UTF-8')}</option>
 				{/foreach}
 			</select>
 		</span>
