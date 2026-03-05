@@ -210,7 +210,7 @@ function attachTagVoteButtons(tagsContainerEl : HTMLElement, addTagModalEl : HTM
 				input.value = '';
 
 				let insertPoint = tagsContainerEl.lastElementChild!;
-				if(insertPoint.nodeName === "LABEL") insertPoint = insertPoint.previousElementSibling!; // skip the 'more tags' label if it exists
+				if(insertPoint.previousElementSibling?.nodeName === "LABEL") insertPoint = insertPoint.previousElementSibling!; // skip the 'more tags' label if it exists
 				while(insertPoint.previousElementSibling && insertPoint.previousElementSibling.classList.contains('downvoted'))
 					insertPoint = insertPoint.previousElementSibling; // move to before the downvoted tags
 				
