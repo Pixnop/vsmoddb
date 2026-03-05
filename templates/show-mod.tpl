@@ -105,14 +105,14 @@
 				<dd class="tags">
 					{if $hiddenTagsCount > 0}<input type="checkbox" id="more-tags-trigger" autocomplete="off" />{/if}
 					{foreach from=$tags item=tag key=i}
-					<a href="/list/mod?tagids[]={$tag['tagId']}" class="tag{if $tag['votes'] < 0} downvoted hidden{elseif $i >= 8} hidden{/if}" style="background-color:{$tag['color']}" title="{$tag['text']}">{$tag['name']}</a>
+					<a href="/list/mod?tagids[]={$tag['tagId']}" class="tag{if $tag['votes'] < TAG_DOWNVOTED_THRESHOLD} downvoted hidden{elseif $i >= 8} hidden{/if}" style="background-color:{$tag['color']}" title="{$tag['text']}">{$tag['name']}</a>
 					{/foreach}
 				</dd>
 				{else}
 				<dd class="tags votable">
 					{if $hiddenTagsCount > 0}<input type="checkbox" id="more-tags-trigger" autocomplete="off" />{/if}
 					{foreach from=$tags item=tag key=i}
-					<span class="tag{if $tag['votes'] < 0} downvoted hidden{elseif $i >= 8} hidden{/if}" style="background-color:{$tag['color']}" title="{$tag['text']}" data-tagid="{$tag['tagId']}" data-vote="{$tag['vote'] ?? 0}">
+					<span class="tag{if $tag['votes'] < TAG_DOWNVOTED_THRESHOLD} downvoted hidden{elseif $i >= 8} hidden{/if}" style="background-color:{$tag['color']}" title="{$tag['text']}" data-tagid="{$tag['tagId']}" data-vote="{$tag['vote'] ?? 0}">
 						<a href="/list/mod?tagids[]={$tag['tagId']}">{$tag['name']}</a><span class="add"></span><span class="rem"></span>
 					</span>
 					{/foreach}

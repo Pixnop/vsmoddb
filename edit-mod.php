@@ -35,7 +35,7 @@ if(isset($_GET['assetid'])) {
 	$mod['assetTypeId'] = ASSETTYPE_MOD;
 	if(!canEditAsset($mod, $user)) showErrorPage(HTTP_FORBIDDEN);
 
-	$mod['tags'] = $con->getAssoc('SELECT t.tagId, t.name, t.color FROM modTags mt JOIN tags t ON t.tagId = mt.tagId WHERE modId = ?', $mod['modId']);
+	$mod['tags'] = $con->getAssoc('SELECT t.tagId, t.name, t.color, mt.votes FROM modTags mt JOIN tags t ON t.tagId = mt.tagId WHERE modId = ?', $mod['modId']);
 
 	$canEditAsOwner = canEditAsset($mod, $user, false);
 	if($canEditAsOwner) {

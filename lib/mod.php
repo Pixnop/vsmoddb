@@ -130,7 +130,7 @@ function updateMod($oldModData, $mod, $filesInOrder, $newMembers, $newEditorMemb
  */
 function updateModTags($modId, $oldTags, $newTagsIds)
 {
-	global $con;
+	global $con, $user;
 
 	$changes = [];
 
@@ -141,9 +141,21 @@ function updateModTags($modId, $oldTags, $newTagsIds)
 			$tag = $oldTags[$tagId] ?? null;
 
 			if($tag === null) {
-				$con->execute('INSERT INTO modTags (modId, tagId) VALUES (?, ?)', [$modId, $tagId]);
+				$con->execute(<<<SQL
+					INSERT INTO modTags (modId, tagId, votes)
+						VALUES (?, ?, ?)
+					ON DUPLICATE KEY UPDATE
+						votes = votes + VALUES(votes)
+				SQL, [$modId, $tagId, TAG_MODAUTHOR_VOTES]);
 
-				$tag = $con->getRow('SELECT name, color FROM tags WHERE tagId = ?', [$tagId]);
+				$con->execute(<<<SQL
+					INSERT INTO modTagVotes (modId, tagId, userId, vote)
+						VALUES (?, ?, ?, ?)
+					ON DUPLICATE KEY UPDATE
+						vote = VALUES(vote)
+				SQL, [$modId, $tagId, $user['userId'], TAG_MODAUTHOR_VOTES]);
+
+				$tag = $con->getRow('SELECT name FROM tags WHERE tagId = ?', [$tagId]);
 
 				if ($addedNamesFolded) $addedNamesFolded .= "', '";
 				$addedNamesFolded .= $tag['name'];
@@ -163,6 +175,7 @@ function updateModTags($modId, $oldTags, $newTagsIds)
 		$removedTagIdsFolded = implode(',', array_keys($oldTags));
 		// @security: $oldTags and its keys are obtained form the database, are numeric and therefore sql inert.
 		$con->Execute("DELETE FROM modTags WHERE modId = ? AND tagId IN ($removedTagIdsFolded)", [$modId]);
+		$con->Execute("DELETE FROM modTagVotes WHERE modId = ? AND tagId IN ($removedTagIdsFolded)", [$modId]);
 
 		$removedTagNamesFolded = implode("', '", array_map(fn ($t) => $t['name'], $oldTags));
 		$s = count($oldTags) !== 1 ? 's' : '';

@@ -45,3 +45,7 @@ if (strstr($_SERVER["SERVER_NAME"], "mods.vintagestory.stage")) {
 }
 
 if(!defined("DB_READONLY")) define("DB_READONLY", false);
+
+define("TAG_MODAUTHOR_VOTES", 1); // Not yet fully implemented, keep this at one.
+if(!defined("TAG_DOWNVOTED_THRESHOLD")) define("TAG_DOWNVOTED_THRESHOLD", 0);
+if(!defined("TAG_HIDE_THRESHOLD")) define("TAG_HIDE_THRESHOLD", -20);

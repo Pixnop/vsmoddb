@@ -34,14 +34,14 @@ $tags = $con->getAll(<<<SQL
 	FROM modTags mt
 	LEFT JOIN tags t ON t.tagId = mt.tagId
 	LEFT JOIN modTagVotes mtv ON (mtv.modId, mtv.tagId, mtv.userId) = (mt.modId, mt.tagId, ?)
-	WHERE mt.modId = ?
+	WHERE mt.modId = ? AND mt.votes > ?
 	ORDER BY mt.votes DESC
-SQL, [$user['userId'] ?? 0, $asset['modId']]);
+SQL, [$user['userId'] ?? 0, $asset['modId'], TAG_HIDE_THRESHOLD]);
 
 $hiddenTagsCount = 0;
 $i = 0;
 foreach($tags as $tag) {
-	if($tag['votes'] < 0) $hiddenTagsCount++;
+	if($tag['votes'] < TAG_DOWNVOTED_THRESHOLD) $hiddenTagsCount++;
 	else {
 		$i++;
 		if($i > 8) $hiddenTagsCount++;

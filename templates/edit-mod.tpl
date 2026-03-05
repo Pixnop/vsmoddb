@@ -46,10 +46,10 @@
 		</div>
 
 		<div class="editbox">
-			<label>Tags</label>
+			<label><abbr title="Tags with negative total votes are hidden by default and are ignored when searching.&#x0a;Tags with total votes below <?= TAG_HIDE_THRESHOLD ?> are additionally fully hidden.">Tags</abbr></label>
 			<select name="tagids[]" multiple>
 				{foreach from=$tags item=tag key=tagId}
-					<option value="{$tagId}" title="{$tag['text']}"{if isset($mod['tags'][$tagId])} selected="selected"{/if}>{$tag['name']}</option>
+					<option value="{$tagId}" title="{$tag['text']}"{if isset($mod['tags'][$tagId])} selected="selected"{/if}>{$tag['name']}{if isset($mod['tags'][$tagId])} ({$mod['tags'][$tagId]['votes']}){/if}</option>
 				{/foreach}
 			</select>
 		</div>
