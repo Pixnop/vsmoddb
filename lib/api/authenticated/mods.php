@@ -291,17 +291,21 @@ switch($urlparts[1]) {
 				$con->execute($preparedTagInsert, [$tagName]);
 				$response[$con->insert_ID()] = ['name' => $tagName, 'color' => '#92C96AFF'];
 			}
+			$allAddedTagIds = array_keys($response);
 
-			
 			// 1 - vote == -vote + 1, removes the old vote and sets it to 1
 			$voteDiffsFromThisUser = $con->getAssoc("SELECT tagId, 1 - vote FROM modTagVotes WHERE modId = $modId AND  userId = {$user['userId']}");
 
 			$foldedValues = '';
-			foreach(array_keys($response) as $tagId) {
+			foreach($allAddedTagIds as $tagId) {
 				if($foldedValues) $foldedValues .= ',';
 				$newVoteOrDiff = $voteDiffsFromThisUser[$tagId] ?? 1;
 				$foldedValues .= "($modId, $tagId, $newVoteOrDiff)";
 			}
+
+			// Figure out which of hte tags already exist on the mod so we can later on figure out which ones to log as 'new':
+			// @perf: Should we need to optimize this we could also obtain this information dynamically form the first vote on a tag.
+			$tagsThatAreAlreadyOnThisMod = $con->getCol("SELECT tagId FROM modTags WHERE modId = $modId AND tagId IN (".implode(',', $allAddedTagIds).")");
 
 			// :TagUpdateOrder
 			$con->execute(<<<SQL
@@ -311,7 +315,7 @@ switch($urlparts[1]) {
 					votes = votes + VALUES(votes)
 			SQL); // @security: All of these values are filtered to be integers, and therefore sql inert.
 
-			$foldedValues = implode(",", array_map(fn($tagId) => "($modId, $tagId, {$user['userId']}, 1)", array_keys($response)));
+			$foldedValues = implode(",", array_map(fn($tagId) => "($modId, $tagId, {$user['userId']}, 1)", $allAddedTagIds));
 
 			// :TagUpdateOrder
 			$con->execute(<<<SQL
@@ -320,6 +324,12 @@ switch($urlparts[1]) {
 				ON DUPLICATE KEY UPDATE
 					vote = VALUES(vote)
 			SQL); // @security: All of these values are filtered to be integers, and therefore sql inert.
+
+			$newTagIds = array_diff($allAddedTagIds, $tagsThatAreAlreadyOnThisMod);
+			if(!empty($newTagIds)) {
+				$newTagNames = array_map(fn($t) => $t['name'], array_intersect_key($response, array_flip($newTagIds)));
+				logAssetChanges(['Added '.formatGrammaticallyCorrectEnumeration(array_values($newTagNames)).' as tags to the mod.'], $con->getOne("SELECT assetId FROM mods WHERE modId = $modId"));
+			}
 
 			$ok = $con->completeTrans();
 			if($ok) good($response, JSON_FORCE_OBJECT);
