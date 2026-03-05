@@ -37,7 +37,19 @@ $tags = $con->getAll(<<<SQL
 	WHERE mt.modId = ?
 	ORDER BY mt.votes DESC
 SQL, [$user['userId'] ?? 0, $asset['modId']]);
+
+$hiddenTagsCount = 0;
+$i = 0;
+foreach($tags as $tag) {
+	if($tag['votes'] < 0) $hiddenTagsCount++;
+	else {
+		$i++;
+		if($i > 8) $hiddenTagsCount++;
+	}
+}
+
 $view->assign("tags", $tags);
+$view->assign("hiddenTagsCount", $hiddenTagsCount);
 
 $teamMembers = $con->getAll(<<<SQL
 	SELECT u.userId, u.name, HEX(u.hash) AS userHash
