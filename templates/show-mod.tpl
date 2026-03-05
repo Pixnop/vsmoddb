@@ -35,7 +35,11 @@
 <div class="edit-asset mod-{$asset['statusCode']}">
 	<h2>
 		<span>
+		{if $asset['category'] === CATEGORY_SERVER_TWEAK}
+			<a href="/list/mod?c=s">Server Tweaks</a>
+		{else}
 			<a href="/list/mod">Mods</a>
+		{/if}
 		</span> /
 		<span>
 			{$asset["name"] ?? 'Add new Mod'}

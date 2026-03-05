@@ -3,17 +3,22 @@
 <div class="edit-asset" style="padding: 1em 1em 0 1em">
 
 	<h2>
+	{if $mod['assetId']}
 		<span>
-			<a href="/list/mod">Mods</a>
-		</span> /
-		{if $mod['assetId']}
-			<span>
-				<a href="{formatModPath($mod)}">{$mod["name"]}</a>
-			</span> / 
-			<span>Edit</span>
+		{if $mod['category'] == CATEGORY_SERVER_TWEAK}
+			<a href="/list/mod?c=s">Server Tweaks</a>
 		{else}
-			<span>Add new Mod</span>
+			<a href="/list/mod">Mods</a>
 		{/if}
+		</span> /
+		<span>
+			<a href="{formatModPath($mod)}">{$mod["name"]}</a>
+		</span> / 
+		<span>Edit</span>
+	{else}
+		<span><a href="/list/mod">Mods</a></span> /
+		<span>Add new Mod</span>
+	{/if}
 	</h2>
 
 	<form method="post" name="deleteform">
