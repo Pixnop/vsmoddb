@@ -105,7 +105,7 @@
 
 			<dl class="infobox{if empty($asset['trailerVideoUrl']) && empty($files)} nomedia{/if}">
 				<dt>Tags:</dt>
-				{if empty($user)}
+				{if empty($user) || DISABLE_USER_TAGS}
 				<dd class="tags">
 					{if $hiddenTagsCount > 0}<input type="checkbox" id="more-tags-trigger" autocomplete="off" />{/if}
 					{foreach from=$tags item=tag key=i}
@@ -265,7 +265,7 @@
 
 	<div style="clear:both;"></div>
 
-	{if !empty($user)}
+	{if !empty($user) && !DISABLE_USER_TAGS}
 	<dialog id="add-tag-mdl">
 		<form class="with-buttons-bottom" method="dialog" data-method="post" autocomplete="off" action="/api/v2/mods/{$asset['modId']}/tags">
 			<h1>Add Tags</h1>
@@ -292,7 +292,7 @@
 	<script nonce="{$cspNonce}" type="text/javascript">
 		modId = {$asset['modId']};
 
-		{if !empty($user)}attachTagVoteButtons(document.getElementsByClassName('tags votable')[0], R.get('add-tag-mdl'));{/if}
+		{if !empty($user) && !DISABLE_USER_TAGS}attachTagVoteButtons(document.getElementsByClassName('tags votable')[0], R.get('add-tag-mdl'));{/if}
 
 		$(function() {
 			attachCommentHandlers();

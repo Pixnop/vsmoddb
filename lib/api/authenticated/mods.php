@@ -265,6 +265,8 @@ switch($urlparts[1]) {
 		}
 
 	case 'tags':
+		if(DISABLE_USER_TAGS) fail(HTTP_SERVICE_UNAVAILABLE, ['reason' => 'User tags are currently disabled.']);
+
 		if(count($urlparts) === 2) {
 			validateMethod('POST');
 			validateUserNotBanned();
