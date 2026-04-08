@@ -13,23 +13,23 @@
 {include file="header"}
 
 {if $transferownership}
-	<div class="teaminvite overlay-when-readonly">
-    <span>You have been invited to become the owner of this modification.</span>
-    <div class="buttons">
-        <a title="Accept Ownership" class="button submit" href="?acceptownershiptransfer=1">Accept</a>
-        <a title="Decline Ownership" class="button btndelete" href="?acceptownershiptransfer=0">Decline</a>
-    </div>
-	</div>
+	<form class="teaminvite overlay-when-readonly" method="post">
+		<input type="hidden" name="at" value="{$user['actionToken']}">
+		<span>You have been invited to become the owner of this modification.</span>
+		<div class="buttons">
+			<button type="submit" name="acceptownershiptransfer" value="1" title="Accept Ownership" class="button submit">Accept</button>
+			<button type="submit" name="acceptownershiptransfer" value="0" title="Decline Ownership" class="button btndelete">Decline</button>
+		</div>
+	</form>
 {elseif $teaminvite}
-	<div class="teaminvite overlay-when-readonly">
+	<form class="teaminvite overlay-when-readonly" method="post">
+		<input type="hidden" name="at" value="{$user['actionToken']}">
 		<span>You have been invited to join the team of this mod</span>
 		<div class="buttons">
-			<a title="Click here to join to the team of this mod" class="button submit"
-				href="?acceptteaminvite=1">Accept</a>
-			<a title="Click here to decline the invitation to the team" class="button btndelete"
-				href="?acceptteaminvite=0">Decline</a>
+			<button type="submit" name="acceptteaminvite" value="1" title="Click here to join to the team of this mod" class="button submit">Accept</button>
+			<button type="submit" name="acceptteaminvite" value="0" title="Click here to decline the invitation to the team" class="button btndelete">Decline</button>
 		</div>
-	</div>
+	</form>
 {/if}
 
 <div class="edit-asset mod-{$asset['statusCode']}">

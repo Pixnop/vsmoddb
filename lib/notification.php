@@ -17,7 +17,7 @@ if ($urlparts[1] == 'clearall') {
 	exit();
 }
 
-$notification = $con->getRow('SELECT * FROM notifications WHERE notificationId = ?', [$urlparts[1]]);
+$notification = $con->getRow('SELECT * FROM notifications WHERE notificationId = ? AND userId = ?', [$urlparts[1], $user['userId']]);
 
 if (empty($notification)) {
 	goBackOrRootFallback();

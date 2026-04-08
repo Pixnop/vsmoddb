@@ -314,11 +314,11 @@ function processTeamInvitation($asset, $user)
 	if(!$pending) return;
 
 
-	if (!isset($_GET['acceptteaminvite'])) return;
+	if (!isset($_POST['acceptteaminvite'])) return;
 
 	if(DB_READONLY) showReadonlyPage();
 
-	switch ($_GET['acceptteaminvite']) {
+	switch ($_POST['acceptteaminvite']) {
 		case 1:
 			$canEdit = (intval($invite['recordId']) & (1 << 30)) ? 1 : 0; // :InviteEditBit
 			$con->Execute('INSERT INTO modTeamMembers (modId, userId, canEdit) values (?, ?, ?)', [$asset['modId'], $user['userId'], $canEdit]);
@@ -327,9 +327,7 @@ function processTeamInvitation($asset, $user)
 
 			logAssetChanges([$user['name'].' acepted team invitation'], $asset['assetId']);
 
-			$url = parse_url($_SERVER['REQUEST_URI']);
-			$url['query'] = stripQueryParam($url['query'], 'acceptteaminvite');
-			forceRedirect($url);
+			forceRedirectAfterPOST();
 			exit();
 
 		case 0:
@@ -337,10 +335,7 @@ function processTeamInvitation($asset, $user)
 
 			logAssetChanges([$user['name'].' rejected team invitation'], $asset['assetId']);
 
-
-			$url = parse_url($_SERVER['REQUEST_URI']);
-			$url['query'] = stripQueryParam($url['query'], 'acceptteaminvite');
-			forceRedirect($url);
+			forceRedirectAfterPOST();
 			exit();
 	}
 }
@@ -354,11 +349,11 @@ function processOwnershipTransfer($asset, $user)
 	if(!$pendingInvitationId) return;
 
 
-	if(!isset($_GET['acceptownershiptransfer'])) return;
+	if(!isset($_POST['acceptownershiptransfer'])) return;
 
 	if(DB_READONLY) showReadonlyPage();
 
-	switch ($_GET['acceptownershiptransfer']) {
+	switch ($_POST['acceptownershiptransfer']) {
 		case 1:
 			$con->startTrans();
 
@@ -386,9 +381,7 @@ function processOwnershipTransfer($asset, $user)
 
 			$con->completeTrans();
 
-			$url = parse_url($_SERVER['REQUEST_URI']);
-			$url['query'] = stripQueryParam($url['query'], 'acceptownershiptransfer');
-			forceRedirect($url);
+			forceRedirectAfterPOST();
 			exit();
 
 		case 0:
@@ -405,9 +398,7 @@ function processOwnershipTransfer($asset, $user)
 
 			$con->completeTrans();
 
-			$url = parse_url($_SERVER['REQUEST_URI']);
-			$url['query'] = stripQueryParam($url['query'], 'acceptownershiptransfer');
-			forceRedirect($url);
+			forceRedirectAfterPOST();
 			exit();
 	}
 }

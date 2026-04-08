@@ -9,7 +9,9 @@ if (empty($shownUser)) showErrorPage(HTTP_NOT_FOUND, 'User not found.');
 
 if (!canEditProfile($shownUser, $user)) showErrorPage(HTTP_FORBIDDEN);
 
-if (!empty($_POST['save'])) {	
+if (!empty($_POST['save'])) {
+	validateActionToken();
+
 	$ok = $con->execute('UPDATE users SET bio = ? WHERE userId = ?', [sanitizeHtml($_POST['bio']), $shownUser['userId']]);
 	if ($ok) {
 		// addMessage(MSG_CLASS_OK, 'New profile information saved.');

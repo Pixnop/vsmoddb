@@ -10,6 +10,7 @@ if(empty($targetUser)) showErrorPage(HTTP_NOT_FOUND, 'User not found.');
 if(!canModerate($targetUser, $user)) showErrorPage(HTTP_FORBIDDEN);
 
 if(isset($_POST['submit']) && $_POST['submit'] == 'ban') {
+	validateActionToken();
 	$postData = filter_input_array(INPUT_POST, [
 		'modreason' => ['filter' => FILTER_CALLBACK, 'options' => 'sanitizeHtml'],
 		'forever'   => FILTER_VALIDATE_BOOLEAN,
@@ -46,6 +47,7 @@ if(isset($_POST['submit']) && $_POST['submit'] == 'ban') {
 	}
 }
 else if(isset($_POST['submit']) && $_POST['submit'] == 'redeem') {
+	validateActionToken();
 	$reason = filter_input(INPUT_POST, 'modreason', FILTER_CALLBACK, ['options' => 'sanitizeHtml']);
 	if(empty($reason)) {
 		http_response_code(HTTP_BAD_REQUEST);
@@ -67,6 +69,7 @@ else if(isset($_POST['submit']) && $_POST['submit'] == 'redeem') {
 	}
 }
 else if(isset($_POST['submit']) && $_POST['submit'] == 'warn') {
+	validateActionToken();
 	$reason = filter_input(INPUT_POST, 'modreason', FILTER_CALLBACK, ['options' => 'sanitizeHtml']);
 	if(empty($reason)) {
 		http_response_code(HTTP_BAD_REQUEST);
