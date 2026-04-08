@@ -297,7 +297,7 @@ function deleteMod($mod)
 	");
 	$con->execute('
 		UPDATE notifications n
-		JOIN comments c on c.commentId = n.recordId AND kind IN ('.NOTIFICATION_NEW_COMMENT.','.NOTIFICATION_MENTIONED_IN_COMMENT.") AND c.assetId = $assetId
+		JOIN comments c on c.commentId = n.recordId AND kind IN ('.NOTIFICATION_NEW_COMMENT.','.NOTIFICATION_MENTIONED_IN_COMMENT.','.NOTIFICATION_RESPONDED_TO_COMMENT.") AND c.assetId = $assetId
 		SET n.`read` = 1
 	");
 

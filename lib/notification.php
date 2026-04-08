@@ -62,7 +62,7 @@ switch($notification['kind']) {
 		]);
 		exit();
 
-	case NOTIFICATION_NEW_COMMENT: case NOTIFICATION_MENTIONED_IN_COMMENT:
+	case NOTIFICATION_NEW_COMMENT: case NOTIFICATION_MENTIONED_IN_COMMENT: case NOTIFICATION_RESPONDED_TO_COMMENT:
 		$mod = $con->getRow(<<<SQL
 			SELECT m.assetId, m.urlAlias
 			FROM mods m

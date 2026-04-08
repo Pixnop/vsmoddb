@@ -1,5 +1,5 @@
 .comment {
-	width: 100%;
+	width: unset;
 	word-break: break-word;
 
 	.title {
@@ -31,12 +31,18 @@
 			color: var(--color-text-inv);
 		}
 	}
+
+	@for $i from 1 through 10 { // This is hte reason for :MaxResponseDepth. Also at some point it just becomes unusable.
+		&.rsp-#{$i} { margin-left: calc($i * 1rem); }
+	}
 }
 
 .comments {
-	.comment {
-		margin-bottom: .5em;
-	}
+	display: flex;
+	flex-direction: column;
+	flex-wrap: nowrap;
+	gap: .5em;
+	align-items: stretch;
 }
 
 .comment .body img, table.latestcomments img {

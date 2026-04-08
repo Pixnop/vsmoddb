@@ -1,11 +1,11 @@
 
-var cEditorInitialized = false;
 function attachCommentHandlers() {
 	const container = document.getElementsByClassName('comments')[0];
 
-	$("a[href='#ordernewestfirst']").click(function () {
+	function sortByMostRecent()
+	{
 		const sorted = Array.from(container.children as HTMLCollectionOf<HTMLElement>).sort(function (a, b) {
-			var dt = parseInt(b.dataset.timestamp!) - parseInt(a.dataset.timestamp!);
+			var dt = parseFloat(b.dataset.order!) - parseFloat(a.dataset.order!);
 			return dt < 0 ? -1 : dt > 0 ? 1 : 0;
 		})
 
@@ -13,11 +13,12 @@ function attachCommentHandlers() {
 
 		$.cookie("commentsort", "newestfirst", { expires: 365 });
 		return false;
-	});
+	}
 
-	$("a[href='#orderoldestfirst']").click(function () {
+	function sortByOldest()
+	{
 		const sorted = Array.from(container.children as HTMLCollectionOf<HTMLElement>).sort(function (a, b) {
-			var dt = parseInt(a.dataset.timestamp!) - parseInt(b.dataset.timestamp!);
+			var dt = parseFloat(a.dataset.order!) - parseFloat(b.dataset.order!);
 			return dt < 0 ? -1 : dt > 0 ? 1 : 0;
 		})
 
@@ -25,79 +26,175 @@ function attachCommentHandlers() {
 
 		$.cookie("commentsort", "oldestfirst", { expires: 365 });
 		return false;
-	});
+	}
 
-	if ($.cookie("commentsort") == "oldestfirst") $("a[href='#orderoldestfirst']").trigger("click");
+	$("a[href='#ordernewestfirst']").click(sortByMostRecent);
+	$("a[href='#orderoldestfirst']").click(sortByOldest);
 
-	$(".comment.comment-editor", container).show();
-	$(".comment.comment-editor textarea", container).focus(function (e : FocusEvent) {
+	if($.cookie("commentsort") === "oldestfirst") sortByOldest();
+
+	const newCommentWrapperEl = container.getElementsByClassName("comment-editor")[0];
+	let cEditorInitialized = false;
+	$("textarea", newCommentWrapperEl).focus(function (e : FocusEvent) {
 		if (cEditorInitialized) return;
-		$(this).removeClass("whitetext");
 		cEditorInitialized = true;
+
+		$(this).removeClass("whitetext");
+
 		$('form[name=commentformtemplate]').trigger('reinitialize.areYouSure');
+		
 		const ta = e.currentTarget as HTMLTextAreaElement
 		createEditor(ta, tinymceSettingsCmt);
-		//TODO(Rennorb): @ux: would like to focus the editor after we created it, but that just crashes for some reason.
-		// Seems to be a know bug in tiny aswell...
+		setTimeout(() => tinyMCE.get(ta.id).focus(), 100);
 	});
 
-	$(".comment.comment-editor button[name='save']", container).click(function () {
-		const $comment = $(this).parents(".comment");
-
-		const content = getEditorContents($("textarea", $comment));
+	$("button[name='save']", newCommentWrapperEl).click(function (e : MouseEvent) {
+		const editorWrapper = $(this).parents(".comment.comment-editor")[0] as HTMLElement;
+		
+		const editorTAEl = editorWrapper.getElementsByTagName("textarea")[0];
+		const content = getEditorContents($(editorTAEl));
 		if(!content) return;
 
-		const $editor = $(".comments .comment.comment-editor");
+		const button = e.target as HTMLButtonElement;
+		button.disabled = true; // prevent double submission by impatient user
+		const prevButtonText = button.textContent;
 
-		// We don't have direct information about the current user in js land, so we extract it form the menu:
-		const accMenu = R.get('account-menu');
-		const userName = accMenu!.firstElementChild!.textContent;
-		const userUrl = (accMenu!.lastElementChild!.firstElementChild as HTMLAnchorElement).getAttribute('href');
-
-		const $cmt = $(`
-<div class="editbox comment" data-timestamp="${Date.now()}">
-	<div class="title">
-		<span><a style="text-decoration:none;" class="cmt-pinner" href="#"><i class="bx bx-link-alt"></i></a> <a href="${userUrl}">${userName}</a>, just now</span>
-	</div>
-	<div class="body">${content}</div>
-</div>
-		`);
-		// Guess that it worked and already attach the comment, we revert it in case it didn't. Makes things snappier.
-		$cmt.insertAfter($editor);
-		attachSpoilerToggle($('.spoiler-toggle', $cmt));
-		$editor.hide();
+		const spinnerInterval = startSubmissionSpinner(button);
 
 		const xhr = $.ajax({ url: `/api/v2/mods/${modId}/comments?at=`+actiontoken, method: 'PUT', data: content, contentType: 'text/html', dataType: 'text' })
 			.done(function (response : string, _, jqXHR : jqXHR) {
-				const cmtFrag = jqXHR.getResponseHeader('Location')!;
-				$cmt[0].id = cmtFrag.slice(1); // slice of the # from #cmt-213
-				$('.cmt-pinner', $cmt)[0].href = cmtFrag;
-				$('.title', $cmt)[0].innerHTML += ` <span class="buttons">(<a href="#e">edit</a>&nbsp;<a href="#d">delete</a>)</span>`;
-				$('.body', $cmt)[0].innerHTML = response; // update the response to the actual serverside validated version
-				attachSpoilerToggle($('.spoiler-toggle', $cmt));
+				const cmtFrag = jqXHR.getResponseHeader('Location')!;  // the response contains the newly generated comment id in the location header as a fragment link (e.g. `#cmt-213`)
+				const commentId = cmtFrag.slice(5) // slice off the #cmt- from the link
+
+				const cmt = createComment(commentId, 0, response, 0);
+				editorWrapper.after(cmt)
+
+				tinyMCE.get(editorTAEl.id).setContent(''); // Clear the editor
+
+				temporaryHighlight(cmt);
+
+				clearInterval(spinnerInterval);
+				button.textContent = prevButtonText;
+				button.disabled = false;
 			})
 			.fail(function() {
-				$cmt.remove();
-				$editor.show();
+				clearInterval(spinnerInterval);
+				button.textContent = prevButtonText;
+				button.disabled = false;
 			});
 		R.attachDefaultFailHandler(xhr, 'Failed to submit comment');
 	})
 
+	$(".comment.comment-editor", container).show(); // Hidden initially until we are fully loaded. 
 
-	$(container).on("click", 'a[href="#d"]', function (e : MouseEvent) {
+	//
+	// Set up comment head functions (edit, delete, moderate)
+	//
+
+	function clickRespond(e : MouseEvent)
+	{
 		e.preventDefault();
-		if (confirm("Are you sure you want to delete this comment?")) {
-			const $comment = $(this).parents(".comment");
-			$comment.hide();
+		const targetCommentEl = $(this).parents(".comment")[0] as HTMLElement;
 
-			const commentId = $comment[0].id.split('-')[1];
-			const xhr = $.ajax({ url: `/api/v2/comments/${commentId}?at=`+actiontoken, method: 'DELETE'})
-			R.attachDefaultFailHandler(xhr, 'Failed to delete comment')
-				.fail(() => $comment.show()); // Make it visible again if we failed to delete it, so the user may retry.
+		const targetCommentId = targetCommentEl.id.split('-')[1];
+		const wrapperId = 'repl-'+targetCommentId;
+
+		const prevWrapper = document.getElementById(wrapperId);
+		if(prevWrapper) {
+			const prevForm = prevWrapper.getElementsByTagName("form")[0];
+			if (prevForm.classList.contains("dirty")) {
+				var ok = confirm("Discard changed comment data?");
+				if (!ok) return false;
+			}
+
+			destroyEditor($("textarea", prevForm));
+			prevWrapper.remove();
+			return false;
 		}
-	});
+		
 
-	$(container).on("click", 'a[href="#e"]', function (e : MouseEvent) {
+		let responseDepth = 1;
+		// If we respond to a already responded to comment we need to go deeper:
+		for(const clazz of targetCommentEl.classList) {
+			if(clazz.startsWith('rsp-')) responseDepth = parseInt(clazz.substring(4)) + 1;
+		}
+		responseDepth = Math.min(responseDepth, 10); // :MaxResponseDepth
+
+		const editorWrapperEl = $(`
+<div id="${wrapperId}" class="comment comment-editor editbox rsp-${responseDepth}">
+	<div class="title">Response to comment:</div>
+	<div class="body"></div>
+</div>
+`)[0] as HTMLElement;
+
+		for(const anchor of targetCommentEl.getElementsByClassName('title')[0].getElementsByTagName('a')) {
+			if(anchor.href.includes('user')) {
+				editorWrapperEl.getElementsByClassName('title')[0].textContent = `Respond to ${anchor.textContent}'s comment:`;
+				break;
+			}
+		}
+
+		if($.cookie("commentsort") === 'oldestfirst') {
+			let insertAfterEl = targetCommentEl as Element;
+			for(; insertAfterEl.nextElementSibling; insertAfterEl = insertAfterEl.nextElementSibling!) {
+				let foundEqualOrHigherResponseLevel = false;
+				for(const clazz of insertAfterEl.nextElementSibling.classList) {
+					if(clazz.startsWith('rsp') && parseInt(clazz.substring(4)) >= responseDepth) {
+						foundEqualOrHigherResponseLevel = true;
+					}
+				}
+				if(!foundEqualOrHigherResponseLevel) break;
+			}
+			insertAfterEl.after(editorWrapperEl);
+		}
+		else {
+			let insertBeforeEl = targetCommentEl as Element;
+			for(; insertBeforeEl.previousElementSibling; insertBeforeEl = insertBeforeEl.previousElementSibling!) {
+				let foundEqualOrHigherResponseLevel = false;
+				for(const clazz of insertBeforeEl.previousElementSibling.classList) {
+					if(clazz.startsWith('rsp') && parseInt(clazz.substring(4)) >= responseDepth) {
+						foundEqualOrHigherResponseLevel = true;
+					}
+				}
+				if(!foundEqualOrHigherResponseLevel) break;
+			}
+			insertBeforeEl.before(editorWrapperEl);
+		}
+
+		editorWrapperEl.scrollIntoView({ behavior: "smooth", block: "nearest" })
+
+		createInlineEditor(editorWrapperEl.getElementsByClassName('body')[0], 'Add Response', '', (button, content, form, editor) => {
+			button.disabled = true; // prevent impatience
+			const prevButtonText = button.textContent;
+			const spinnerInterval = startSubmissionSpinner(button);
+
+			const xhr = $.ajax({ url: `/api/v2/mods/${modId}/comments?response-to=${targetCommentId}&at=`+actiontoken, method: 'PUT', data: content, contentType: 'text/html', dataType: 'text' })
+				.done(function(response, _, jqXHR : jqXHR) {
+					clearInterval(spinnerInterval);
+
+					const cmtFrag = jqXHR.getResponseHeader('Location')!;  // the response contains the newly generated comment id in the location header as a fragment link (e.g. `#cmt-213`)
+					const commentId = cmtFrag.slice(5) // slice off the #cmt- from the link
+					
+					const cmt = createComment(commentId, responseDepth, response, parseFloat(targetCommentEl.dataset.order!));
+
+					tinyMCE.remove("#" + editor.id);
+					editorWrapperEl.replaceWith(cmt);
+
+					temporaryHighlight(cmt);
+				})
+				.fail(function() {
+					clearInterval(spinnerInterval);
+					button.textContent = prevButtonText;
+					button.disabled = false;
+				});
+			R.attachDefaultFailHandler(xhr, 'Failed to submit comment');
+		});
+
+		return false;
+	}
+
+	function clickEdit(e : MouseEvent)
+	{
 		e.preventDefault();
 		const $comment = $(this).parents(".comment");
 		const $body = $('.body', $comment);
@@ -122,27 +219,13 @@ function attachCommentHandlers() {
 		$comment.data("editing", 1);
 
 		const commentId = $comment[0].id.split('-')[1];
-		const $form = $(`
-			<form name="commentformedit" onsubmit="return false;">
-				<textarea name="commenttext" class="editor editcommenteditor" data-editorname="editcomment" style="width: 100%; height: 135px;">${$body.html()}</textarea>
-				<p style="margin:4px; margin-top:5px;"><button class="shine" type="submit" name="save">Update Comment</button></p>
-			</form>
-		`);
-		$form.appendTo($comment);
-		$form.areYouSure();
-
-		const $editor = $("textarea", $form);
-		createEditor($editor[0], tinymceSettingsCmt);
-
-		$("button[name='save']", $form).click(function(e) {
-			e.preventDefault();
-			var content = getEditorContents($editor);
+		createInlineEditor($comment[0], 'Update Comment', $body.html(), (button, content, form, editor) => {
 			//TODO(Rennorb): optimistic update
 
 			const xhr = $.ajax({ url: `/api/v2/comments/${commentId}?at=`+actiontoken, method: 'POST', data: content, contentType: 'text/html', dataType: 'json' })
 				.done(function(response) {
-					destroyEditor($editor);
-					$form.remove();
+					tinyMCE.remove("#" + editor.id);
+					form.remove();
 
 					$body.html(response.html);
 					attachSpoilerToggle($('.spoiler-toggle', $body));
@@ -153,13 +236,106 @@ function attachCommentHandlers() {
 		});
 
 		return false;
-	});
+	}
+
+	function clickDelete(e : MouseEvent)
+	{
+		e.preventDefault();
+		if (confirm("Are you sure you want to delete this comment?")) {
+			const $comment = $(this).parents(".comment");
+			$comment.hide();
+
+			const commentId = $comment[0].id.split('-')[1];
+			const xhr = $.ajax({ url: `/api/v2/comments/${commentId}?at=`+actiontoken, method: 'DELETE'})
+			R.attachDefaultFailHandler(xhr, 'Failed to delete comment')
+				.fail(() => $comment.show()); // Make it visible again if we failed to delete it, so the user may retry.
+		}
+	}
+
+	$(container).on("click", 'a[href="#r"]', clickRespond);
+	$(container).on("click", 'a[href="#e"]', clickEdit);
+	$(container).on("click", 'a[href="#d"]', clickDelete);
+
+	//
+	// Highlight for direct comment links
+	//
 
 	if(document.location.hash.split('-')[0] === '#cmt') {
 		const el = document.getElementById(document.location.hash.substring(1));
-		if(el) {
-			el.classList.add('highlight');
-			setTimeout(() => el.classList.remove('highlight'), 2000); // remove so sorting doesn't re-trigger the highlight.
-		}
+		if(el) temporaryHighlight(el);
 	}
+
+	function temporaryHighlight(el : HTMLElement)
+	{
+		el.classList.add('highlight');
+		setTimeout(() => el.classList.remove('highlight'), 2000); // remove so sorting doesn't re-trigger the highlight.
+	}
+
+	//
+	// Util stuff
+	//
+
+	function createInlineEditor(wrapperEl : Element, buttonText : string, contents : string, saveCallback : (button : HTMLButtonElement, editorContents : string, form : HTMLFormElement, editor : HTMLTextAreaElement) => void) : void
+	{
+		const formEl = $(`
+			<form name="commentformedit" onsubmit="return false;">
+				<textarea name="commenttext" class="editor editcommenteditor" data-editorname="editcomment" style="width: 100%; height: 135px;">${contents}</textarea>
+				<p style="margin:4px; margin-top:5px;"><button class="shine" type="submit" name="save">${buttonText}</button></p>
+			</form>
+		`)[0] as HTMLFormElement;
+
+		wrapperEl.append(formEl);
+		$(formEl).areYouSure();
+
+		const editorTAEl = formEl.getElementsByTagName("textarea")[0];
+		createEditor(editorTAEl, tinymceSettingsCmt);
+
+		setTimeout(() => tinyMCE.get(editorTAEl.id).focus(), 100);
+
+		const button = formEl.querySelector("button[name='save']")! as HTMLButtonElement;
+		button.addEventListener('click', (e) => {
+			e.preventDefault();
+
+			var content = getEditorContents($(editorTAEl));
+			saveCallback(button, content, formEl, editorTAEl);
+		});
+	}
+
+	function createComment(commentId : number|string, responseDepth : number, safeBody : string, responseTargetOrder : number) : HTMLElement
+	{
+		// We don't have direct information about the current user in js land, so we extract it form the menu:
+		const accMenu = R.get('account-menu');
+		const userName = accMenu!.firstElementChild!.textContent;
+		const userUrl = (accMenu!.lastElementChild!.firstElementChild as HTMLAnchorElement).getAttribute('href');
+
+		//NOTE(Rennorb) @hack: The comment ordering is just incremented by .1, which will fail after inserting 10 new comments without reloading the page.
+		// "Fail" means changing the ordering without reloading wont behave correctly, untill the page is reloaded.
+		// Since we don't have live updates users don't have a reason to stay on the page for extended periods of time - this is good enough.
+		const cmt = $(`
+<div id="cmt-${commentId}" class="editbox comment${responseDepth ? ' rsp-'+responseDepth : ''}" data-order="${responseTargetOrder + .1 /* @hack */}">
+	<div class="title">
+		<span><a style="text-decoration:none;" class="cmt-pinner" href="#cmt-${commentId}"><i class="bx bx-link-alt"></i></a> <a href="${userUrl}">${userName}</a>, just now</span>
+		<span class="buttons">(<a href="#r" onclick="return false;">respond</a>&nbsp;<a href="#e" onclick="return false;">edit</a>&nbsp;<a href="#d" onclick="return false;">delete</a>)</span>
+	</div>
+	<div class="body">${safeBody}</div>
+</div>
+`)[0] as HTMLElement;
+
+		attachSpoilerToggle($('.spoiler-toggle', $(cmt)));
+
+		return cmt;
+	}
+
+	function startSubmissionSpinner(button : HTMLButtonElement) : number
+	{
+		button.textContent = 'Submitting..';
+		let dots = 0;
+		const buttonInterval = setInterval(() => {
+			button.textContent = 'Submitting....'.slice(0, 12 + dots);
+			dots = (dots + 1) % 3;
+		}, 300);
+		return buttonInterval;
+	}
+
+
 }

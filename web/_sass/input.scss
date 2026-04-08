@@ -42,8 +42,10 @@ input, button,
 
 input:disabled,
 button:disabled,
+.button:disabled,
 .prefixed-input.disabled {
 	background-color: var(--color-input-disabled);
+	cursor: not-allowed;
 }
 
 /* TODO(Rennorb) @cleanup: use buttons as buttons... */
@@ -63,19 +65,19 @@ input[type="submit"],
 	user-select: none;
 }
 
-button[type="submit"]:hover,
-input[type="submit"]:hover,
-.button:hover {
+button[type="submit"]:not(:disabled):hover,
+input[type="submit"]:not(:disabled):hover,
+.button:not(:disabled):hover {
 	color: var(--color-text);
 	background-color: hsl(var(--c-input-btn) 87%);
 }
-.button.submit:hover, .button.btndelete:hover {
+.button.submit:not(:disabled):hover, .button.btndelete:not(:disabled):hover {
 	color: var(--color-text-inv);
 }
 
-button[type="submit"]:active,
-input[type="submit"]:active,
-.button:active {
+button[type="submit"]:not(:disabled):active,
+input[type="submit"]:not(:disabled):active,
+.button:not(:disabled):active {
 	color: var(--color-text);
 	background-color: hsl(var(--c-input-btn) 90%);
 }

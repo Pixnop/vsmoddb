@@ -30,6 +30,15 @@ switch($urlparts[1]) {
 				$assetId = intval($modData['assetId']);
 				if(!$assetId)  fail(HTTP_NOT_FOUND, ['reason' => 'Unknown modid.']);
 
+				$responseTo = filter_input(INPUT_GET, 'response-to', FILTER_VALIDATE_INT);
+				if($responseTo) {
+					$responseTarget = $con->getRow('SELECT COALESCE(conversationRoot, commentId) AS conversationRoot, responseDepth, userId FROM comments WHERE commentId = ?', [$responseTo]);
+					if(!$responseTarget)  fail(HTTP_NOT_FOUND, ['reason' => 'Unknown response-to id.']);
+				}
+				else {
+					$responseTarget = ['conversationRoot' => null, 'responseDepth' => -1, 'userId' => 0];
+				}
+
 				$commentHtml = trim(sanitizeHtml(file_get_contents('php://input')));
 				if(!$commentHtml)  fail(HTTP_BAD_REQUEST, ['reason' => 'Comment must not be empty.']);
 
@@ -43,7 +52,9 @@ switch($urlparts[1]) {
 
 				$con->startTrans();
 
-				$con->execute('INSERT INTO comments (assetId, userId, text) VALUES (?, ?, ?)', [$assetId, $user['userId'], $commentHtml]);
+				$con->execute('INSERT INTO comments (assetId, responseTo, conversationRoot, responseDepth, userId, text) VALUES (?, ?, ?, ?, ?, ?)',
+					[$assetId, $responseTo ?: null, $responseTarget['conversationRoot'], min($responseTarget['responseDepth'] + 1, 255), $user['userId'], $commentHtml]
+				);
 				$commentId = $con->insert_ID();
 
 				$con->execute('UPDATE mods SET comments = comments + 1 WHERE assetId = ?', [$assetId]);
@@ -54,16 +65,16 @@ switch($urlparts[1]) {
 				// Notifications for user mentions:
 				if(preg_match_all('/user-hash="([a-z0-9]{20})"/i', $commentHtml, $rawMatches)) {
 					$foldedHashes = implode(',', array_map(fn($h) => "UNHEX('$h')", $rawMatches[1]));
-					// The mod author always gets sent their own notification, but users thend to reply to them by @ing them.
-					// For this reason we take out any references to the mod author and ourself here (`user.userId not in ($creatorUserId, $currentUserId)`).
+					// The mod author always gets sent their own notification, but users tend to reply to them by @ing them.
+					// For this reason we take out any references to the mod author, ourself and the potentially responded to comment's author here (`user.userId not in ($creatorUserId, $currentUserId, $responseTarget['userId'])`).
 
-					// @security: $rawMatches are validated to be alphanumeric and therefore sql inert by the regex. $commentId, $currentUserId and $creatorUserId are known to be integers.
+					// @security: $rawMatches are validated to be alphanumeric and therefore sql inert by the regex. $commentId, $currentUserId, $creatorUserId and $responseTarget['userId'] are known to be integers.
 					$con->execute("
 						INSERT INTO notifications (kind, recordId, userId)
 						SELECT ".NOTIFICATION_MENTIONED_IN_COMMENT.", $commentId, u.userId
 						FROM users u
 						WHERE u.`hash` IN ($foldedHashes)
-							AND u.userId NOT IN ($creatorUserId, $currentUserId)
+							AND u.userId NOT IN ($creatorUserId, $currentUserId, {$responseTarget['userId']})
 					");
 				}
 
@@ -78,6 +89,13 @@ switch($urlparts[1]) {
 				if($currentUserId !== $creatorUserId) { // Don't send a notification to ourself if we are the one commenting.
 					// @security: $commentId and $creatorUserId are known to be integers.
 					$con->execute("INSERT INTO notifications (kind, recordId, userId) VALUES (".NOTIFICATION_NEW_COMMENT.", $commentId, $creatorUserId)");
+				}
+
+				// Send notification to the responded-to party:
+				//NOTE(Rennorb): Not within the transaction. In case this fails for whatever reason we don't want to rewind the comment submission just because the notification didn't go.
+				if($responseTo && $responseTarget['userId'] !== $creatorUserId && $responseTarget['userId'] !== $currentUserId) {
+					// @security: $commentId and $responseTarget['userId'] are known to be integers.
+					$con->execute("INSERT INTO notifications (kind, recordId, userId) VALUES (".NOTIFICATION_RESPONDED_TO_COMMENT.", $commentId, {$responseTarget['userId']})");
 				}
 
 				header('Location: #cmt-'.$commentId, true, HTTP_CREATED);

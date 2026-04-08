@@ -141,6 +141,9 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `comments` (
   `commentId`           INT       NOT NULL AUTO_INCREMENT,
   `assetId`             INT       NOT NULL,
+  `responseTo`          INT           NULL,
+  `conversationRoot`    INT           NULL,
+  `responseDepth`       TINYINT UNSIGNED NOT NULL DEFAULT 0,
   `userId`              INT       NOT NULL,
   `text`                TEXT CHARACTER SET utf8mb4 NOT NULL,
   `contentLastModified` DATETIME      NULL,

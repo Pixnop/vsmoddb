@@ -33,6 +33,7 @@ const NOTIFICATION_MOD_UNLOCKED           = 8;
 const NOTIFICATION_MOD_OWNERSHIP_TRANSFER_RESOLVED = 10;
 const NOTIFICATION_WARNING_RECEIVED       = 16;
 const NOTIFICATION_WARNING_ACKNOWLEDGED   = 17;
+const NOTIFICATION_RESPONDED_TO_COMMENT   = 20;
 
 const NOTIFICATION_ONEOFF_MALFORMED_RELEASE = 64 + 0; // :LegacyMalformedModInfo
 
@@ -225,7 +226,7 @@ function loadNotifications($loadAll)
 				$notification['text'] = "{$cmt['username']} has $verb your ownership transfer of {$cmt['modName']}";
 				break;
 
-			case NOTIFICATION_NEW_COMMENT: case NOTIFICATION_MENTIONED_IN_COMMENT:
+			case NOTIFICATION_NEW_COMMENT: case NOTIFICATION_MENTIONED_IN_COMMENT: case NOTIFICATION_RESPONDED_TO_COMMENT:
 				$cmt = $con->getRow(<<<SQL
 					SELECT a.name AS modName, u.name AS username
 					FROM comments c
@@ -234,11 +235,10 @@ function loadNotifications($loadAll)
 					WHERE c.commentId = ?
 				SQL, [$notification['recordId']]);
 
-				if ($notification['kind'] === NOTIFICATION_NEW_COMMENT) {
-					$notification['text'] = "{$cmt['username']} commented on {$cmt['modName']}";
-				}
-				else {
-					$notification['text'] = "{$cmt['username']} mentioned you in a comment on {$cmt['modName']}";
+				switch ($notification['kind']) {
+					case NOTIFICATION_NEW_COMMENT: $notification['text'] = "{$cmt['username']} commented on {$cmt['modName']}"; break;
+					case NOTIFICATION_MENTIONED_IN_COMMENT: $notification['text'] = "{$cmt['username']} mentioned you in a comment on {$cmt['modName']}"; break;
+					case NOTIFICATION_RESPONDED_TO_COMMENT: $notification['text'] = "{$cmt['username']} responded to one of your comments on {$cmt['modName']}"; break;
 				}
 				break;
 

@@ -98,23 +98,62 @@ unset($file);
 
 $view->assign('files', $files);
 
-$deletedFilter = canModerate(null, $user) ? '' : 'AND !c.deleted';
 $comments = $con->getAll(<<<SQL
 	SELECT 
 		c.*,
+		LEAST(c.responseDepth, 10) AS responseDepth, -- :MaxResponseDepth
 		mr.kind as lastModaction,
 		u.name AS username,
 		HEX(u.hash) AS userHash,
 		IFNULL(u.banneduntil >= NOW(), 0) AS isBanned,
-		r.code AS roleCode
+		r.code AS roleCode,
+		COALESCE(c.responseTo, c.commentId) AS responseTo,
+		COALESCE(c.conversationRoot, c.commentId) AS conversationRoot -- cannot insert this initially for its own row, so lets coalesce with its own id here
 	FROM 
 		comments c 
 		JOIN users u ON u.userId = c.userId
 		LEFT JOIN roles r ON r.roleId = u.roleid
 		LEFT JOIN moderationRecords mr ON mr.actionId = c.lastModaction
-	WHERE c.assetId = ? $deletedFilter
-	ORDER BY c.created DESC
+	WHERE c.assetId = ?
+	ORDER BY COALESCE(c.conversationRoot, c.commentId) ASC, c.responseTo ASC, c.created ASC
 SQL, [$assetId]);
+
+if(count($comments) > 1) { // @perf: This could be better, but its not too bad honestly. 
+	for($i = 0; $i < count($comments) - 1; ++$i) {
+		$a = $comments[$i];
+		$b = $comments[$i + 1];
+
+		if($a['conversationRoot'] === $a['commentId'] || $b['conversationRoot'] === $b['commentId']) { // dont touch the bottom layer
+			continue;
+		}
+
+		if($a['responseTo'] === $b['responseTo']) {
+			continue;
+		}
+
+		if($a['commentId'] !== $b['responseTo']) {
+			for($j = $i - 1; $j >= 0; --$j) {
+				if($comments[$j]['commentId'] === $b['responseTo'] || $comments[$j]['responseTo'] === $b['responseTo']) {
+					$el = array_splice($comments, $i + 1, 1);
+					array_splice($comments, $j + 1, 0, $el);
+					
+					$change = true;
+					continue 2;
+				}
+			}
+		}
+	}
+}
+
+// Unfortunately we have to do this in php now, as we need all ids for the php ordering and therefore need to have them returned from the database.
+//TODO(Rennorb) @perf: Maybe the ordering algo can be adjusted to work with holes aswell, should probably be doable.
+if(!canModerate(null, $user)) {
+	$comments = array_filter($comments, fn($c) => !$c['deleted']);
+}
+
+
+$comments = array_reverse($comments); // @pref: default ordering is newest first.
+
 
 foreach ($comments as &$comment) {
 	if ($asset['createdByUserId'] == $comment['userId']) {

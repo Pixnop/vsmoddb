@@ -191,9 +191,10 @@ String example: http://mods.vintagestory.at/api/mod/carrycapacity
 - `put`: `auth` `at`
 	- Args:
 		- Path arg `{modid}`
+		- Get arg `response-to`: optional comment id for which this comment is a response to.
 		- Request body: Desired comment html.
 	- `400`: Invalid action token or malformed request.
-	- `404`: Target mod does not exist.
+	- `404`: Target mod or response-to comment does not exist.
 	- `403`: Active user is currently restricted.
 	- `200`: Comment got created. Returns the processed html of the newly created comment as the response body, and the link to the comment in the Location header.
 
