@@ -2,36 +2,66 @@
 function attachCommentHandlers() {
 	const container = document.getElementsByClassName('comments')[0];
 
-	function sortByMostRecent()
+	function updateCommentOrder()
 	{
-		const sorted = Array.from(container.children as HTMLCollectionOf<HTMLElement>).sort(function (a, b) {
-			var dt = parseFloat(b.dataset.order!) - parseFloat(a.dataset.order!);
-			return dt < 0 ? -1 : dt > 0 ? 1 : 0;
-		})
+		const comments = Array.from(container.children as HTMLCollectionOf<HTMLElement>);
+		const sortByDate = $.cookie('commentstructure') === 'flat';
+
+		let sorted : HTMLElement[];
+		if($.cookie("commentsort") !== 'oldestfirst') {
+			sorted = sortByDate
+				? comments.sort(function (a, b) {
+						var dt = parseInt(b.dataset.stamp!) - parseInt(a.dataset.stamp!);
+						return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+					})
+				: comments.sort(function (a, b) {
+						var dt = parseFloat(b.dataset.order!) - parseFloat(a.dataset.order!);
+						return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+					})
+		}
+		else {
+			sorted = sortByDate
+				? comments.sort(function (a, b) {
+						var dt = parseInt(a.dataset.stamp!) - parseInt(b.dataset.stamp!);
+						return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+					})
+				: comments.sort(function (a, b) {
+						var dt = parseFloat(a.dataset.order!) - parseFloat(b.dataset.order!);
+						return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+					})
+		}
 
 		container.replaceChildren(...sorted);
-
-		$.cookie("commentsort", "newestfirst", { expires: 365 });
-		return false;
 	}
 
-	function sortByOldest()
-	{
-		const sorted = Array.from(container.children as HTMLCollectionOf<HTMLElement>).sort(function (a, b) {
-			var dt = parseFloat(a.dataset.order!) - parseFloat(b.dataset.order!);
-			return dt < 0 ? -1 : dt > 0 ? 1 : 0;
-		})
+	R.get('cmt-ord-desc')!.addEventListener('click', e => {
+		e.preventDefault();
+		$.cookie("commentsort", "newestfirst", { expires: 365, path: '/' });
+		updateCommentOrder();
+	});
+	R.get('cmt-ord-asc')!.addEventListener('click', e => {
+		e.preventDefault();
+		$.cookie("commentsort", "oldestfirst", { expires: 365, path: '/' });
+		updateCommentOrder();
+	});
 
-		container.replaceChildren(...sorted);
+	R.get('cmt-threaded')!.addEventListener('click', e => {
+		e.preventDefault();
+		container.classList.add('threaded');
+		$.cookie("commentstructure", "threaded", { expires: 365, path: '/' });
+		updateCommentOrder();
+	});
+	R.get('cmt-flat')!.addEventListener('click', e => {
+		e.preventDefault();
+		container.classList.remove('threaded');
+		$.cookie("commentstructure", "flat", { expires: 365, path: '/' });
+		updateCommentOrder();
+	});
 
-		$.cookie("commentsort", "oldestfirst", { expires: 365 });
-		return false;
-	}
-
-	$("a[href='#ordernewestfirst']").click(sortByMostRecent);
-	$("a[href='#orderoldestfirst']").click(sortByOldest);
-
-	if($.cookie("commentsort") === "oldestfirst") sortByOldest();
+	// @hack: This will cause a resort after the page finishes loading if the user selected flat view.
+	// I to avoid that we need to store the threaded order on the objects, and do a bunch of time parsing.
+	// TODO(Rennorb) @cleanup: Should probably just clean up the time formatting so this isn't such a penalty.
+	if($.cookie("commentstructure") === "flat") updateCommentOrder();
 
 	const newCommentWrapperEl = container.getElementsByClassName("comment-editor")[0];
 	let cEditorInitialized = false;
@@ -85,7 +115,7 @@ function attachCommentHandlers() {
 		R.attachDefaultFailHandler(xhr, 'Failed to submit comment');
 	})
 
-	$(".comment.comment-editor", container).show(); // Hidden initially until we are fully loaded. 
+	$(".comment.comment-editor", container).show(); // Hidden initially until we are fully loaded. TODO @cleanup: dot cause reflow, just show a loading spinner.
 
 	//
 	// Set up comment head functions (edit, delete, moderate)
@@ -123,9 +153,12 @@ function attachCommentHandlers() {
 		const editorWrapperEl = $(`
 <div id="${wrapperId}" class="comment comment-editor editbox rsp-${responseDepth}">
 	<div class="title">Response to comment:</div>
+	<a class="reference" href="#${targetCommentEl.id}"><span></span></a>
 	<div class="body"></div>
 </div>
 `)[0] as HTMLElement;
+		const shortResponseText = targetCommentEl.getElementsByClassName('body')[0].textContent!.substring(0, 255);
+		editorWrapperEl.getElementsByTagName('span')[0].textContent = shortResponseText;
 
 		for(const anchor of targetCommentEl.getElementsByClassName('title')[0].getElementsByTagName('a')) {
 			if(anchor.href.includes('user')) {
@@ -134,9 +167,11 @@ function attachCommentHandlers() {
 			}
 		}
 
+		let targetOrder = 0;
+
 		if($.cookie("commentsort") === 'oldestfirst') {
-			let insertAfterEl = targetCommentEl as Element;
-			for(; insertAfterEl.nextElementSibling; insertAfterEl = insertAfterEl.nextElementSibling!) {
+			let insertAfterEl = targetCommentEl;
+			for(; insertAfterEl.nextElementSibling; insertAfterEl = insertAfterEl.nextElementSibling! as HTMLElement) {
 				let foundEqualOrHigherResponseLevel = false;
 				for(const clazz of insertAfterEl.nextElementSibling.classList) {
 					if(clazz.startsWith('rsp') && parseInt(clazz.substring(4)) >= responseDepth) {
@@ -145,11 +180,12 @@ function attachCommentHandlers() {
 				}
 				if(!foundEqualOrHigherResponseLevel) break;
 			}
+			targetOrder = parseFloat(insertAfterEl.dataset.order!);
 			insertAfterEl.after(editorWrapperEl);
 		}
 		else {
-			let insertBeforeEl = targetCommentEl as Element;
-			for(; insertBeforeEl.previousElementSibling; insertBeforeEl = insertBeforeEl.previousElementSibling!) {
+			let insertBeforeEl = targetCommentEl;
+			for(; insertBeforeEl.previousElementSibling; insertBeforeEl = insertBeforeEl.previousElementSibling! as HTMLElement) {
 				let foundEqualOrHigherResponseLevel = false;
 				for(const clazz of insertBeforeEl.previousElementSibling.classList) {
 					if(clazz.startsWith('rsp') && parseInt(clazz.substring(4)) >= responseDepth) {
@@ -158,6 +194,7 @@ function attachCommentHandlers() {
 				}
 				if(!foundEqualOrHigherResponseLevel) break;
 			}
+			targetOrder = parseFloat(insertBeforeEl.dataset.order!);
 			insertBeforeEl.before(editorWrapperEl);
 		}
 
@@ -175,7 +212,13 @@ function attachCommentHandlers() {
 					const cmtFrag = jqXHR.getResponseHeader('Location')!;  // the response contains the newly generated comment id in the location header as a fragment link (e.g. `#cmt-213`)
 					const commentId = cmtFrag.slice(5) // slice off the #cmt- from the link
 					
-					const cmt = createComment(commentId, responseDepth, response, parseFloat(targetCommentEl.dataset.order!));
+					// @hack: Adding .01 will fail after adding 100 messages without reloading the page, meaning sorting will be wired until a reload. Literally irrelevant.
+					const cmt = createComment(commentId, responseDepth, response, targetOrder + .01);
+
+					const usernameRef = targetCommentEl.getElementsByTagName('a')[1].textContent; //TODO(Rennorb) @hardcoded
+					const ref = R.make<HTMLAnchorElement>('a.reference', '@'+usernameRef+": ", R.make('span', shortResponseText))
+					ref.href = '#'+targetCommentEl.id;
+					cmt.getElementsByClassName('title')[0].after(ref);
 
 					tinyMCE.remove("#" + editor.id);
 					editorWrapperEl.replaceWith(cmt);
@@ -255,6 +298,7 @@ function attachCommentHandlers() {
 	$(container).on("click", 'a[href="#r"]', clickRespond);
 	$(container).on("click", 'a[href="#e"]', clickEdit);
 	$(container).on("click", 'a[href="#d"]', clickDelete);
+	$(container).on("click", 'a[href^="#cmt-"]', highlightClickedEl);
 
 	//
 	// Highlight for direct comment links
@@ -263,6 +307,16 @@ function attachCommentHandlers() {
 	if(document.location.hash.split('-')[0] === '#cmt') {
 		const el = document.getElementById(document.location.hash.substring(1));
 		if(el) temporaryHighlight(el);
+	}
+
+	function highlightClickedEl(_ : MouseEvent)
+	{
+		const href = (this as HTMLAnchorElement).getAttribute('href');
+		if(!href) return;
+
+		const id = href.slice(1)
+		var target = document.getElementById(id)!;
+		setTimeout(() => temporaryHighlight(target), 100); // wait until scrolled into view
 	}
 
 	function temporaryHighlight(el : HTMLElement)
@@ -279,10 +333,12 @@ function attachCommentHandlers() {
 	{
 		const formEl = $(`
 			<form name="commentformedit" onsubmit="return false;">
-				<textarea name="commenttext" class="editor editcommenteditor" data-editorname="editcomment" style="width: 100%; height: 135px;">${contents}</textarea>
+				<textarea name="commenttext" class="editor editcommenteditor" data-editorname="editcomment" style="width: 100%; height: 135px;"></textarea>
 				<p style="margin:4px; margin-top:5px;"><button class="shine" type="submit" name="save">${buttonText}</button></p>
 			</form>
 		`)[0] as HTMLFormElement;
+
+		formEl.getElementsByTagName('textarea')[0].textContent = contents;
 
 		wrapperEl.append(formEl);
 		$(formEl).areYouSure();
@@ -308,11 +364,8 @@ function attachCommentHandlers() {
 		const userName = accMenu!.firstElementChild!.textContent;
 		const userUrl = (accMenu!.lastElementChild!.firstElementChild as HTMLAnchorElement).getAttribute('href');
 
-		//NOTE(Rennorb) @hack: The comment ordering is just incremented by .1, which will fail after inserting 10 new comments without reloading the page.
-		// "Fail" means changing the ordering without reloading wont behave correctly, untill the page is reloaded.
-		// Since we don't have live updates users don't have a reason to stay on the page for extended periods of time - this is good enough.
 		const cmt = $(`
-<div id="cmt-${commentId}" class="editbox comment${responseDepth ? ' rsp-'+responseDepth : ''}" data-order="${responseTargetOrder + .1 /* @hack */}">
+<div id="cmt-${commentId}" class="editbox comment${responseDepth ? ' rsp-'+responseDepth : ''}" data-order="${responseTargetOrder}" data-stamp="${Date.now()}">
 	<div class="title">
 		<span><a style="text-decoration:none;" class="cmt-pinner" href="#cmt-${commentId}"><i class="bx bx-link-alt"></i></a> <a href="${userUrl}">${userName}</a>, just now</span>
 		<span class="buttons">(<a href="#r" onclick="return false;">respond</a>&nbsp;<a href="#e" onclick="return false;">edit</a>&nbsp;<a href="#d" onclick="return false;">delete</a>)</span>

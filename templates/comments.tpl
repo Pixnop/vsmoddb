@@ -1,6 +1,6 @@
 			<div style="clear:both;"><br></div>
-			<h3><a name="comments"></a>{count($comments)} Comment{count($comments) !== 1 ? 's' : ''} <span style="font-size:70%">(<a href="#orderoldestfirst" onclick="return false;">oldest first</a> | <a href="#ordernewestfirst" onclick="return false;">newest first</a>)</span></h3>
-			<div class="comments">
+			<h3><a name="comments"></a>{count($comments)} Comment{count($comments) !== 1 ? 's' : ''} <span style="font-size:70%">(<a id="cmt-ord-asc" href="#" onclick="return false;">oldest first</a> | <a id="cmt-ord-desc" href="#" onclick="return false;">newest first</a>) (<a id="cmt-threaded" href="#" onclick="return false;">threaded</a> | <a id="cmt-flat" href="#" onclick="return false;">flat</a>)</span></h3>
+			<div class="comments{if ($_COOKIE['commentstructure'] ?? '') !== 'flat'} threaded{/if}">
 				{if !empty($user)}
 				<div class="comment comment-editor editbox overlay-when-banned overlay-when-readonly" style="display:none;">
 					<div class="title">Add new comment:</div>
@@ -15,10 +15,10 @@
 				{/if}
 			
 				{foreach from=$comments item=comment key=i}
-					<div id="cmt-{$comment['commentId']}" class="editbox comment{if $comment['deleted']} deleted{/if}{if $comment['responseTo']} rsp-{$comment['responseDepth']}{/if}" data-order="-{$i}">
+					<div id="cmt-{$comment['commentId']}" class="editbox comment{if $comment['deleted']} deleted{/if}{if $comment['responseTo']} rsp-{$comment['responseDepth']}{/if}" data-order="{$i}" data-stamp="{strtotime($comment['created'])}">
 						<div class="title">
 							<span><a style="text-decoration:none;" href="#cmt-{$comment['commentId']}"><i class="bx bx-link-alt"></i></a>
-							<a href="/show/user/{$comment['userHash']}">{$comment['username']}</a>{if !empty($comment["flairCode"])} <small class="flair flair-{$comment['flairCode']}"></small>{/if}{if $comment['isBanned']}&nbsp;<span style="color:red;">[currently restricted]</span>{/if}, {fancyDate($comment['created'])} {if $comment['contentLastModified']}(modified {fancyDate($comment['contentLastModified'])}{if $comment['lastModaction'] == MODACTION_KIND_EDIT} by a moderator{/if}){/if}{if $comment['lastModaction'] == MODACTION_KIND_DELETE} (deleted by moderator){/if}</span>
+							<a href="/show/user/{$comment['userHash']}">{htmlspecialchars($comment['username'])}</a>{if !empty($comment["flairCode"])} <small class="flair flair-{$comment['flairCode']}"></small>{/if}{if $comment['isBanned']}&nbsp;<span style="color:red;">[currently restricted]</span>{/if}, {fancyDate($comment['created'])} {if $comment['contentLastModified']}(modified {fancyDate($comment['contentLastModified'])}{if $comment['lastModaction'] == MODACTION_KIND_EDIT} by a moderator{/if}){/if}{if $comment['lastModaction'] == MODACTION_KIND_DELETE} (deleted by moderator){/if}</span>
 								{if !empty($user)}
 										{if $comment["userId"] == $user["userId"]}
 											{if !$comment['deleted']}
@@ -31,6 +31,7 @@
 										{/if}
 								{/if}
 						</div>
+						{if $comment['responseTo'] !== $comment['commentId']}<a class="reference" href="#cmt-{$comment['responseTo']}">@{htmlspecialchars($comment['parentUserName'])}: <span>{htmlspecialchars($comment['parentText'])}</span></a>{/if}
 						<div class="body">{postprocessCommentHtml($comment['text'])}</div>
 						{if $comment['deleted']}<span class="ribbon-tr">Deleted</span>{/if}
 					</div>

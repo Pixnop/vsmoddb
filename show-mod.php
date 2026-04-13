@@ -108,12 +108,16 @@ $comments = $con->getAll(<<<SQL
 		IFNULL(u.banneduntil >= NOW(), 0) AS isBanned,
 		r.code AS roleCode,
 		COALESCE(c.responseTo, c.commentId) AS responseTo,
-		COALESCE(c.conversationRoot, c.commentId) AS conversationRoot -- cannot insert this initially for its own row, so lets coalesce with its own id here
+		COALESCE(c.conversationRoot, c.commentId) AS conversationRoot, -- cannot insert this initially for its own row, so lets coalesce with its own id here
+		parent.textShort AS parentText,
+		parentUser.name AS parentUserName
 	FROM 
 		comments c 
 		JOIN users u ON u.userId = c.userId
 		LEFT JOIN roles r ON r.roleId = u.roleid
 		LEFT JOIN moderationRecords mr ON mr.actionId = c.lastModaction
+		LEFT JOIN comments parent ON parent.commentId = c.responseTo
+		LEFT JOIN users parentUser ON parentUser.userId = parent.userId
 	WHERE c.assetId = ?
 	ORDER BY COALESCE(c.conversationRoot, c.commentId) ASC, c.responseTo ASC, c.created ASC
 SQL, [$assetId]);
@@ -151,8 +155,9 @@ if(!canModerate(null, $user)) {
 	$comments = array_filter($comments, fn($c) => !$c['deleted']);
 }
 
-
-$comments = array_reverse($comments); // @pref: default ordering is newest first.
+if(($_COOKIE['commentsort'] ?? '') !== 'oldestfirst') {
+	$comments = array_reverse($comments, true); // @pref: default ordering is newest first.
+}
 
 
 foreach ($comments as &$comment) {

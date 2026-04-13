@@ -2,11 +2,30 @@
 	width: unset;
 	word-break: break-word;
 
-	.title {
+	>.title {
 		padding: .25em;
 	}
 
-	.body {
+	>.reference {
+		display: block;
+		font-size: small;
+		color: var(--color-text-weak);
+		padding: .125em .25em;
+		text-wrap: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		text-decoration: none;
+
+		&::before {
+			content: '\2B10';
+		}
+
+		&:hover>span {
+			text-decoration: underline;
+		}
+	}
+
+	>.body {
 		padding: 4px;
 		background-color: rgba(255,255,255,0.4);
 	}
@@ -32,8 +51,14 @@
 		}
 	}
 
-	@for $i from 1 through 10 { // This is hte reason for :MaxResponseDepth. Also at some point it just becomes unusable.
-		&.rsp-#{$i} { margin-left: calc($i * 1rem); }
+	@at-root .comments.threaded & {
+		.reference {
+			display: none;
+		}
+
+		@for $i from 1 through 10 { // This is hte reason for :MaxResponseDepth. Also at some point it just becomes unusable.
+			&.rsp-#{$i} { margin-left: calc($i * 1rem); }
+		}
 	}
 }
 

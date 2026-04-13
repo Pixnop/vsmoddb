@@ -50,10 +50,12 @@ switch($urlparts[1]) {
 					fail(HTTP_BAD_REQUEST, ['reason' => $reason]);
 				}
 
+				$commentTextShort = mb_substr(textContent($commentHtml), 0, 255); // stored for comment replies
+
 				$con->startTrans();
 
-				$con->execute('INSERT INTO comments (assetId, responseTo, conversationRoot, responseDepth, userId, text) VALUES (?, ?, ?, ?, ?, ?)',
-					[$assetId, $responseTo ?: null, $responseTarget['conversationRoot'], min($responseTarget['responseDepth'] + 1, 255), $user['userId'], $commentHtml]
+				$con->execute('INSERT INTO comments (assetId, responseTo, conversationRoot, responseDepth, userId, text, textShort) VALUES (?, ?, ?, ?, ?, ?, ?)',
+					[$assetId, $responseTo ?: null, $responseTarget['conversationRoot'], min($responseTarget['responseDepth'] + 1, 255), $user['userId'], $commentHtml, $commentTextShort]
 				);
 				$commentId = $con->insert_ID();
 

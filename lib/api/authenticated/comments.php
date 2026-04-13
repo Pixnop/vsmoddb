@@ -32,7 +32,7 @@ switch($_SERVER['REQUEST_METHOD']) {
 			fail(HTTP_BAD_REQUEST, ['reason' => $reason]);
 		}
 
-		$con->startTrans();
+		$commentTextShort = mb_substr(textContent($commentHtml), 0, 255); // stored for comment replies
 
 		// have to get rid of the images for size reasons.
 		//TODO(Rennorb) @cleanup @correctness: This should just get replaced with delta detection (kinda).
@@ -43,18 +43,21 @@ switch($_SERVER['REQUEST_METHOD']) {
 
 		$strippedOld = stripImageForChangelog($comment['text']);
 		$strippedNew = stripImageForChangelog($commentHtml);
+
+		$con->startTrans();
+
 		if($wasModAction) {
 			$changelog = "Modified someone elses comment ($strippedOld) => ($strippedNew)";
 
 			//TODO(Rennorb): Diff the strings and add the diff to the log.
 			$lastModAction = logModeratorAction($comment['userId'], $user['userId'], MODACTION_KIND_EDIT, $commentId, SQL_DATE_FOREVER, null);
 
-			$con->execute('UPDATE comments SET text = ?, lastModaction = ?, contentLastModified = NOW() WHERE commentId = ?', [$commentHtml, $lastModAction, $commentId]);
+			$con->execute('UPDATE comments SET text = ?, textShort, lastModaction = ?, contentLastModified = NOW() WHERE commentId = ?', [$commentHtml, $commentTextShort, $lastModAction, $commentId]);
 		}
 		else {
 			$changelog = "Modified their comment ($strippedOld) => ($strippedNew).";
 
-			$con->execute('UPDATE comments SET text = ?, contentLastModified = NOW() WHERE commentId = ?', [$commentHtml, $commentId]);
+			$con->execute('UPDATE comments SET text = ?, textShort = ?, contentLastModified = NOW() WHERE commentId = ?', [$commentHtml, $commentTextShort, $commentId]);
 		}
 
 		logAssetChanges([$changelog], $comment['assetId']);

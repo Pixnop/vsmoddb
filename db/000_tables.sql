@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS `comments` (
   `responseDepth`       TINYINT UNSIGNED NOT NULL DEFAULT 0,
   `userId`              INT       NOT NULL,
   `text`                TEXT CHARACTER SET utf8mb4 NOT NULL,
+  `textShort`           VARCHAR(255) CHARACTER SET utf8mb4 NOT NULL,
   `contentLastModified` DATETIME      NULL,
   `lastModaction`       INT           NULL,
   `deleted`             BOOL      NOT NULL DEFAULT 0,
