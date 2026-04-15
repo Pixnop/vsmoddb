@@ -52,7 +52,7 @@ switch($_SERVER['REQUEST_METHOD']) {
 			//TODO(Rennorb): Diff the strings and add the diff to the log.
 			$lastModAction = logModeratorAction($comment['userId'], $user['userId'], MODACTION_KIND_EDIT, $commentId, SQL_DATE_FOREVER, null);
 
-			$con->execute('UPDATE comments SET text = ?, textShort, lastModaction = ?, contentLastModified = NOW() WHERE commentId = ?', [$commentHtml, $commentTextShort, $lastModAction, $commentId]);
+			$con->execute('UPDATE comments SET text = ?, textShort = ?, lastModaction = ?, contentLastModified = NOW() WHERE commentId = ?', [$commentHtml, $commentTextShort, $lastModAction, $commentId]);
 		}
 		else {
 			$changelog = "Modified their comment ($strippedOld) => ($strippedNew).";
