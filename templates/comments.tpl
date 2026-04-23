@@ -1,6 +1,6 @@
 			<div style="clear:both;"><br></div>
 			<h3><a name="comments"></a>{count($comments)} Comment{count($comments) !== 1 ? 's' : ''} <span style="font-size:70%">(<a id="cmt-ord-asc" href="#" onclick="return false;">oldest first</a> | <a id="cmt-ord-desc" href="#" onclick="return false;">newest first</a>) (<a id="cmt-threaded" href="#" onclick="return false;">threaded</a> | <a id="cmt-flat" href="#" onclick="return false;">flat</a>)</span></h3>
-			<div class="comments{if ($_COOKIE['commentstructure'] ?? '') !== 'flat'} threaded{/if}">
+			<div class="comments{if $threaded = ($_COOKIE['commentstructure'] ?? '') !== 'flat'} threaded{/if}{if ($_COOKIE['commentsort'] ?? '') === 'oldestfirst'} asc{else} desc{/if}">
 				{if !empty($user)}
 				<div class="comment comment-editor editbox overlay-when-banned overlay-when-readonly" style="display:none;">
 					<div class="title">Add new comment:</div>
@@ -14,26 +14,69 @@
 				</div>
 				{/if}
 			
-				{foreach from=$comments item=comment key=i}
-					<div id="cmt-{$comment['commentId']}" class="editbox comment{if $comment['deleted']} deleted{/if}{if $comment['responseTo']} rsp-{$comment['responseDepth']}{/if}" data-order="{$i}" data-stamp="{strtotime($comment['created'])}">
-						<div class="title">
-							<span><a style="text-decoration:none;" href="#cmt-{$comment['commentId']}"><i class="bx bx-link-alt"></i></a>
-							<a href="/show/user/{$comment['userHash']}">{htmlspecialchars($comment['username'])}</a>{if !empty($comment["flairCode"])} <small class="flair flair-{$comment['flairCode']}"></small>{/if}{if $comment['isBanned']}&nbsp;<span style="color:red;">[currently restricted]</span>{/if}, {fancyDate($comment['created'])} {if $comment['contentLastModified']}(modified {fancyDate($comment['contentLastModified'])}{if $comment['lastModaction'] == MODACTION_KIND_EDIT} by a moderator{/if}){/if}{if $comment['lastModaction'] == MODACTION_KIND_DELETE} (deleted by moderator){/if}</span>
-								{if !empty($user)}
-										{if $comment["userId"] == $user["userId"]}
-											{if !$comment['deleted']}
-												<span class="buttons strikethrough-when-banned strikethrough-when-readonly">(<a href="#r" onclick="return false;">respond</a>&nbsp;<a href="#e" onclick="return false;">edit</a>&nbsp;<a href="#d" onclick="return false;">delete</a>)</span>
-											{/if}
-										{elseif canModerate($comment['userId'], $user) && !($comment["userId"] == $user["userId"])}
-												<span class="buttons strikethrough-when-banned strikethrough-when-readonly">(<a href="#r" onclick="return false;">respond</a>&nbsp;{if !$comment['deleted']}<a href="#e" onclick="return false;">edit</a>&nbsp;<a href="#d" onclick="return false;">delete</a>&nbsp;{/if}<a href="/moderate/user/{$comment['userHash']}?source-comment={$comment['commentId']}">moderate user</a>)</span>
-										{elseif $asset['createdByUserId'] == $user['userId'] && !$comment['deleted']}
-												<span class="buttons strikethrough-when-banned strikethrough-when-readonly">(<a href="#r" onclick="return false;">respond</a>&nbsp;<a href="#d" onclick="return false;">delete</a>)</span>
-										{/if}
-								{/if}
-						</div>
-						{if $comment['responseTo'] !== $comment['commentId']}<a class="reference" href="#cmt-{$comment['responseTo']}">@{htmlspecialchars($comment['parentUserName'])}: <span>{htmlspecialchars($comment['parentText'])}</span></a>{/if}
-						<div class="body">{postprocessCommentHtml($comment['text'])}</div>
-						{if $comment['deleted']}<span class="ribbon-tr">Deleted</span>{/if}
-					</div>
-				{/foreach}
+<?php
+	// Unfortunately we have to do this in php now, as we need all ids for the php ordering and therefore need to have them returned from the database.
+	$showDeleted = canModerate(null, $user);
+
+	if($threaded) \{
+		// :MirroredLayouting
+		$oldestFirst = ($_COOKIE['commentsort'] ?? '') === 'oldestfirst';
+		if($oldestFirst) \{
+			$depthStack = [];
+
+			foreach($comments as $i => $comment) \{
+				for(; count($depthStack) && $depthStack[count($depthStack) - 1] >= $comment['responseDepth']; array_pop($depthStack)) \{
+					?></div><?php
+				}
+
+				if($comment['children'] > 0) \{
+					?><div class="convo"><?php
+					array_push($depthStack, $comment['responseDepth']);
+				}
+
+				if(!$comment['deleted'] || $showDeleted) \{
+					$view->assign('i', $i, null, true);
+					$view->assign('comment', $comment, null, true);
+					$view->load('comment');
+				}
+			}
+
+			for($i = 0; $i < count($depthStack); $i++) \{
+				?></div><?php
+			}
+		}
+		else \{ // newestfirst
+			$currentDepth = 0;
+
+			foreach($comments as $i => $comment) \{
+				for(; $comment['responseDepth'] > $currentDepth; $currentDepth++) \{
+					?><div class="convo"><?php
+				}
+
+				if(!$comment['deleted'] || $showDeleted) \{
+					$view->assign('i', $i, null, true);
+					$view->assign('comment', $comment, null, true);
+					$view->load('comment');
+				}
+
+				for(; $comment['responseDepth'] < $currentDepth; $currentDepth--) \{
+					?></div><?php
+				}
+			}
+
+			for(; $currentDepth > 0; $currentDepth--) \{
+				?></div><?php
+			}
+		}
+	}
+	else \{
+		foreach($comments as $i => $comment) \{
+			if(!$comment['deleted'] || $showDeleted) \{
+				$view->assign('i', $i, null, true);
+				$view->assign('comment', $comment, null, true);
+				$view->load('comment');
+			}
+		}
+	}
+?>
 			</div>

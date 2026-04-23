@@ -100,13 +100,11 @@ $view->assign('files', $files);
 
 $comments = $con->getAll(<<<SQL
 	SELECT 
-		c.*,
+		c.commentId, c.text, 
 		LEAST(c.responseDepth, 10) AS responseDepth, -- :MaxResponseDepth
 		mr.kind as lastModaction,
-		u.name AS username,
-		HEX(u.hash) AS userHash,
-		IFNULL(u.banneduntil >= NOW(), 0) AS isBanned,
-		r.code AS roleCode,
+		c.userId, u.name AS username, HEX(u.hash) AS userHash, IFNULL(u.banneduntil >= NOW(), 0) AS isBanned, r.code AS roleCode,
+		c.deleted, c.created, c.contentLastModified,
 		COALESCE(c.responseTo, c.commentId) AS responseTo,
 		COALESCE(c.conversationRoot, c.commentId) AS conversationRoot, -- cannot insert this initially for its own row, so lets coalesce with its own id here
 		parent.textShort AS parentText,
@@ -149,18 +147,10 @@ if(count($comments) > 1) { // @perf: This could be better, but its not too bad h
 	}
 }
 
-// Unfortunately we have to do this in php now, as we need all ids for the php ordering and therefore need to have them returned from the database.
-//TODO(Rennorb) @perf: Maybe the ordering algo can be adjusted to work with holes aswell, should probably be doable.
-if(!canModerate(null, $user)) {
-	$comments = array_filter($comments, fn($c) => !$c['deleted']);
-}
+$showDeleted = canModerate(null, $user);
 
-if(($_COOKIE['commentsort'] ?? '') !== 'oldestfirst') {
-	$comments = array_reverse($comments, true); // @pref: default ordering is newest first.
-}
-
-
-foreach ($comments as &$comment) {
+$commentIdToIndex = [];
+foreach ($comments as $k => &$comment) {
 	if ($asset['createdByUserId'] == $comment['userId']) {
 		$comment['flairCode'] = 'author';
 	}
@@ -168,8 +158,19 @@ foreach ($comments as &$comment) {
 	if ($comment['roleCode'] != 'player' && $comment['roleCode'] != 'player_nc') {
 		$comment['flairCode'] = $comment['roleCode'];
 	}
+
+	$comment['children'] = 0;
+	$commentIdToIndex[$comment['commentId']] = $k; // This can happen immediately before we do anything with the lookup because we only ever need back references.
+
+	if($showDeleted && $comment['responseTo'] !== $comment['commentId']) {
+		$comments[$commentIdToIndex[$comment['responseTo']]]['children']++;
+	}
 }
 unset($comment);
+
+if(($_COOKIE['commentsort'] ?? '') !== 'oldestfirst') {
+	$comments = array_reverse($comments, true); // @pref: default ordering is newest first.
+}
 
 $view->assign("comments", $comments, null, true);
 

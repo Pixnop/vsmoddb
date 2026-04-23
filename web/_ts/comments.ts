@@ -4,43 +4,95 @@ function attachCommentHandlers() {
 
 	function updateCommentOrder()
 	{
-		const comments = Array.from(container.children as HTMLCollectionOf<HTMLElement>);
-		const sortByDate = $.cookie('commentstructure') === 'flat';
+		const flatStructure = $.cookie('commentstructure') === 'flat';
+		const oldestFirst = $.cookie("commentsort") === 'oldestfirst';
+		const comments = Array.from(container.getElementsByClassName('comment') as HTMLCollectionOf<HTMLElement>);
 
-		let sorted : HTMLElement[];
-		if($.cookie("commentsort") !== 'oldestfirst') {
-			sorted = sortByDate
-				? comments.sort(function (a, b) {
-						var dt = parseInt(b.dataset.stamp!) - parseInt(a.dataset.stamp!);
-						return dt < 0 ? -1 : dt > 0 ? 1 : 0;
-					})
-				: comments.sort(function (a, b) {
-						var dt = parseFloat(b.dataset.order!) - parseFloat(a.dataset.order!);
-						return dt < 0 ? -1 : dt > 0 ? 1 : 0;
-					})
-		}
-		else {
-			sorted = sortByDate
+		let newChildren : HTMLElement[];
+		if(flatStructure) {
+			newChildren = oldestFirst
 				? comments.sort(function (a, b) {
 						var dt = parseInt(a.dataset.stamp!) - parseInt(b.dataset.stamp!);
 						return dt < 0 ? -1 : dt > 0 ? 1 : 0;
 					})
 				: comments.sort(function (a, b) {
-						var dt = parseFloat(a.dataset.order!) - parseFloat(b.dataset.order!);
+						var dt = parseInt(b.dataset.stamp!) - parseInt(a.dataset.stamp!);
 						return dt < 0 ? -1 : dt > 0 ? 1 : 0;
 					})
+			;
+			container.replaceChildren(...newChildren);
+		}
+		else { // threaded 
+			container.replaceChildren(); // clear
+
+			// :MirroredLayouting
+			if(oldestFirst) {
+				const sorted = comments.sort(function (a, b) {
+					var dt = parseFloat(a.dataset.order!) - parseFloat(b.dataset.order!);
+					return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+				});
+
+				const depthStack = [] as number[];
+				let pushTargetEl = container;
+
+				for(const comment of sorted) {
+					const responseDepth = parseInt(comment.dataset.d!);
+					for(; depthStack.length && depthStack[depthStack.length - 1] >= responseDepth; depthStack.pop()) {
+						pushTargetEl = pushTargetEl.parentElement!;
+					}
+
+					if(comment.dataset.cldn) {
+						const wrapper = R.make('div.convo');
+
+						pushTargetEl.appendChild(wrapper);
+						pushTargetEl = wrapper;
+						
+						depthStack.push(responseDepth);
+					}
+
+					pushTargetEl.appendChild(comment);
+				}
+			}
+			else {
+				const sorted = comments.sort(function (a, b) {
+					var dt = parseFloat(b.dataset.order!) - parseFloat(a.dataset.order!);
+					return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+				});
+
+				let currentDepth = 0;
+				let pushTargetEl = container;
+
+				for(const comment of sorted) {
+					const responseDepth = parseInt(comment.dataset.d!);
+					for(; responseDepth > currentDepth; currentDepth++) {
+						const wrapper = R.make('div.convo');
+
+						pushTargetEl.appendChild(wrapper);
+						pushTargetEl = wrapper;
+					}
+
+					pushTargetEl.appendChild(comment);
+
+					for(; responseDepth < currentDepth; currentDepth--) {
+						pushTargetEl = pushTargetEl.parentElement!;
+					}
+				}
+			}
 		}
 
-		container.replaceChildren(...sorted);
 	}
 
 	R.get('cmt-ord-desc')!.addEventListener('click', e => {
 		e.preventDefault();
+		container.classList.remove('asc');
+		container.classList.add('desc');
 		$.cookie("commentsort", "newestfirst", { expires: 365, path: '/' });
 		updateCommentOrder();
 	});
 	R.get('cmt-ord-asc')!.addEventListener('click', e => {
 		e.preventDefault();
+		container.classList.remove('desc');
+		container.classList.add('asc');
 		$.cookie("commentsort", "oldestfirst", { expires: 365, path: '/' });
 		updateCommentOrder();
 	});
