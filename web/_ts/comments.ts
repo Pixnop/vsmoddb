@@ -41,7 +41,7 @@ function attachCommentHandlers() {
 						pushTargetEl = pushTargetEl.parentElement!;
 					}
 
-					if(comment.dataset.cldn) {
+					if(parseInt(comment.dataset.cldn!)) {
 						const wrapper = R.make('div.convo');
 
 						pushTargetEl.appendChild(wrapper);
@@ -176,7 +176,7 @@ function attachCommentHandlers() {
 	function clickRespond(e : MouseEvent)
 	{
 		e.preventDefault();
-		const targetCommentEl = $(this).parents(".comment")[0] as HTMLElement;
+		let targetCommentEl = $(this).parents(".comment")[0] as HTMLElement;
 
 		const targetCommentId = targetCommentEl.id.split('-')[1];
 		const wrapperId = 'repl-'+targetCommentId;
@@ -193,17 +193,12 @@ function attachCommentHandlers() {
 			prevWrapper.remove();
 			return false;
 		}
-		
 
-		let responseDepth = 1;
-		// If we respond to a already responded to comment we need to go deeper:
-		for(const clazz of targetCommentEl.classList) {
-			if(clazz.startsWith('rsp-')) responseDepth = parseInt(clazz.substring(4)) + 1;
-		}
-		responseDepth = Math.min(responseDepth, 10); // :MaxResponseDepth
+		let responseDepth = parseInt(targetCommentEl.dataset.d!) + 1;
+		responseDepth = Math.min(responseDepth, 10) // :MaxResponseDepth
 
 		const editorWrapperEl = $(`
-<div id="${wrapperId}" class="comment comment-editor editbox rsp-${responseDepth}">
+<div id="${wrapperId}" class="comment comment-editor editbox rsp" data-d="${responseDepth}">
 	<div class="title">Response to comment:</div>
 	<a class="reference" href="#${targetCommentEl.id}"><span></span></a>
 	<div class="body"></div>
@@ -221,33 +216,41 @@ function attachCommentHandlers() {
 
 		let targetOrder = 0;
 
-		if($.cookie("commentsort") === 'oldestfirst') {
-			let insertAfterEl = targetCommentEl;
-			for(; insertAfterEl.nextElementSibling; insertAfterEl = insertAfterEl.nextElementSibling! as HTMLElement) {
-				let foundEqualOrHigherResponseLevel = false;
-				for(const clazz of insertAfterEl.nextElementSibling.classList) {
-					if(clazz.startsWith('rsp') && parseInt(clazz.substring(4)) >= responseDepth) {
-						foundEqualOrHigherResponseLevel = true;
-					}
-				}
-				if(!foundEqualOrHigherResponseLevel) break;
+		const oldestFirst = $.cookie("commentsort") === 'oldestfirst';
+		if($.cookie("commentstructure") !== "flat") {
+			let wrapper = targetCommentEl.parentElement!;
+			if(!wrapper.classList.contains('convo') || !parseInt(targetCommentEl.dataset.cldn!)) {
+				wrapper = R.make('div.convo');
+				const commentEl = targetCommentEl;
+				targetCommentEl.replaceWith(wrapper);
+				wrapper.appendChild(commentEl);
+				targetCommentEl = commentEl;
 			}
-			targetOrder = parseFloat(insertAfterEl.dataset.order!);
-			insertAfterEl.after(editorWrapperEl);
+
+			if(oldestFirst) {
+				let closestComment = wrapper;
+				while(!closestComment.classList.contains('comment'))
+					closestComment = closestComment.lastElementChild! as HTMLElement;
+				targetOrder = parseFloat(closestComment.dataset.order!);
+	
+				wrapper.appendChild(editorWrapperEl);
+			}
+			else {
+				let closestComment = wrapper;
+				while(!closestComment.classList.contains('comment'))
+					closestComment = closestComment.firstElementChild! as HTMLElement;
+				targetOrder = parseFloat(closestComment.dataset.order!);
+	
+				wrapper.insertBefore(editorWrapperEl, wrapper.firstElementChild);
+			}
 		}
 		else {
-			let insertBeforeEl = targetCommentEl;
-			for(; insertBeforeEl.previousElementSibling; insertBeforeEl = insertBeforeEl.previousElementSibling! as HTMLElement) {
-				let foundEqualOrHigherResponseLevel = false;
-				for(const clazz of insertBeforeEl.previousElementSibling.classList) {
-					if(clazz.startsWith('rsp') && parseInt(clazz.substring(4)) >= responseDepth) {
-						foundEqualOrHigherResponseLevel = true;
-					}
-				}
-				if(!foundEqualOrHigherResponseLevel) break;
+			if(oldestFirst) {
+				container.append(editorWrapperEl);
 			}
-			targetOrder = parseFloat(insertBeforeEl.dataset.order!);
-			insertBeforeEl.before(editorWrapperEl);
+			else {
+				container.insertBefore(editorWrapperEl, container.firstElementChild!.nextElementSibling); // first child is the comment box
+			}
 		}
 
 		editorWrapperEl.scrollIntoView({ behavior: "smooth", block: "nearest" })
@@ -271,6 +274,8 @@ function attachCommentHandlers() {
 					const ref = R.make<HTMLAnchorElement>('a.reference', '@'+usernameRef+": ", R.make('span', shortResponseText))
 					ref.href = '#'+targetCommentEl.id;
 					cmt.getElementsByClassName('title')[0].after(ref);
+
+					targetCommentEl.dataset.cldn = String(parseInt(targetCommentEl.dataset.cldn!) + 1);
 
 					tinyMCE.remove("#" + editor.id);
 					editorWrapperEl.replaceWith(cmt);
@@ -315,8 +320,6 @@ function attachCommentHandlers() {
 
 		const commentId = $comment[0].id.split('-')[1];
 		createInlineEditor($comment[0], 'Update Comment', $body.html(), (button, content, form, editor) => {
-			//TODO(Rennorb): optimistic update
-
 			const xhr = $.ajax({ url: `/api/v2/comments/${commentId}?at=`+actiontoken, method: 'POST', data: content, contentType: 'text/html', dataType: 'json' })
 				.done(function(response) {
 					tinyMCE.remove("#" + editor.id);
@@ -417,7 +420,7 @@ function attachCommentHandlers() {
 		const userUrl = (accMenu!.lastElementChild!.firstElementChild as HTMLAnchorElement).getAttribute('href');
 
 		const cmt = $(`
-<div id="cmt-${commentId}" class="editbox comment${responseDepth ? ' rsp-'+responseDepth : ''}" data-order="${responseTargetOrder}" data-stamp="${Date.now()}">
+<div id="cmt-${commentId}" class="editbox comment${responseDepth ? ' rsp' : ''}" data-order="${responseTargetOrder}" data-stamp="${Date.now()}"${responseDepth ? ' data-d="'+responseDepth+'"' : ''} data-cldn="0">
 	<div class="title">
 		<span><a style="text-decoration:none;" class="cmt-pinner" href="#cmt-${commentId}"><i class="bx bx-link-alt"></i></a> <a href="${userUrl}">${userName}</a>, just now</span>
 		<span class="buttons">(<a href="#r" onclick="return false;">respond</a>&nbsp;<a href="#e" onclick="return false;">edit</a>&nbsp;<a href="#d" onclick="return false;">delete</a>)</span>
@@ -441,6 +444,4 @@ function attachCommentHandlers() {
 		}, 300);
 		return buttonInterval;
 	}
-
-
 }
