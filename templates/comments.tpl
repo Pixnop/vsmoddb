@@ -1,5 +1,14 @@
+<?php
+
+// Unfortunately we have to do this in php now, as we need all ids for the php ordering and therefore need to have them returned from the database.
+$showDeleted = canModerate(null, $user);
+
+
+$visibleCommentCount = $showDeleted ? count($comments) : array_reduce($comments, fn($count, $comment) => $count + ($comment['deleted'] ? 0 : 1), 0);
+
+?>
 			<div style="clear:both;"><br></div>
-			<h3><a name="comments"></a>{count($comments)} Comment{count($comments) !== 1 ? 's' : ''} <span style="font-size:70%">(<a id="cmt-ord-asc" href="#" onclick="return false;">oldest first</a> | <a id="cmt-ord-desc" href="#" onclick="return false;">newest first</a>) (<a id="cmt-threaded" href="#" onclick="return false;">threaded</a> | <a id="cmt-flat" href="#" onclick="return false;">flat</a>)</span></h3>
+			<h3><a name="comments"></a>{$visibleCommentCount} Comment{$visibleCommentCount !== 1 ? 's' : ''} <span style="font-size:70%">(<a id="cmt-ord-asc" href="#" onclick="return false;">oldest first</a> | <a id="cmt-ord-desc" href="#" onclick="return false;">newest first</a>) (<a id="cmt-threaded" href="#" onclick="return false;">threaded</a> | <a id="cmt-flat" href="#" onclick="return false;">flat</a>)</span></h3>
 			<div class="comments{if $threaded = ($_COOKIE['commentstructure'] ?? '') !== 'flat'} threaded{/if}{if ($_COOKIE['commentsort'] ?? '') === 'oldestfirst'} asc{else} desc{/if}">
 				{if !empty($user)}
 				<div class="comment comment-editor editbox overlay-when-banned overlay-when-readonly" style="display:none;">
@@ -15,8 +24,6 @@
 				{/if}
 			
 <?php
-	// Unfortunately we have to do this in php now, as we need all ids for the php ordering and therefore need to have them returned from the database.
-	$showDeleted = canModerate(null, $user);
 
 	if($threaded) \{
 		// :MirroredLayouting
