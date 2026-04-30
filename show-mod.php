@@ -98,6 +98,8 @@ unset($file);
 
 $view->assign('files', $files);
 
+$outerSortOrder = ($_COOKIE['commentsort'] ?? '') !== 'oldestfirst' ? 'DESC' : 'ASC';
+
 $comments = $con->getAll(<<<SQL
 	SELECT 
 		c.commentId, c.text, 
@@ -117,7 +119,7 @@ $comments = $con->getAll(<<<SQL
 		LEFT JOIN comments parent ON parent.commentId = c.responseTo
 		LEFT JOIN users parentUser ON parentUser.userId = parent.userId
 	WHERE c.assetId = ?
-	ORDER BY COALESCE(c.conversationRoot, c.commentId) ASC, c.responseTo ASC, c.created ASC
+	ORDER BY COALESCE(c.conversationRoot, c.commentId) $outerSortOrder, c.responseTo ASC, c.created ASC
 SQL, [$assetId]);
 
 if(count($comments) > 1) { // @perf: This could be better, but its not too bad honestly. 
@@ -147,8 +149,6 @@ if(count($comments) > 1) { // @perf: This could be better, but its not too bad h
 	}
 }
 
-$showDeleted = canModerate(null, $user);
-
 $commentIdToIndex = [];
 foreach ($comments as $k => &$comment) {
 	if ($asset['createdByUserId'] == $comment['userId']) {
@@ -162,15 +162,11 @@ foreach ($comments as $k => &$comment) {
 	$comment['children'] = 0;
 	$commentIdToIndex[$comment['commentId']] = $k; // This can happen immediately before we do anything with the lookup because we only ever need back references.
 
-	if($showDeleted && $comment['responseTo'] !== $comment['commentId']) {
+	if($comment['responseTo'] !== $comment['commentId']) {
 		$comments[$commentIdToIndex[$comment['responseTo']]]['children']++;
 	}
 }
 unset($comment);
-
-if(($_COOKIE['commentsort'] ?? '') !== 'oldestfirst') {
-	$comments = array_reverse($comments, true); // @pref: default ordering is newest first.
-}
 
 $view->assign("comments", $comments, null, true);
 

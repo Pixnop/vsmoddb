@@ -9,7 +9,7 @@ $visibleCommentCount = $showDeleted ? count($comments) : array_reduce($comments,
 ?>
 			<div style="clear:both;"><br></div>
 			<h3><a name="comments"></a>{$visibleCommentCount} Comment{$visibleCommentCount !== 1 ? 's' : ''} <span style="font-size:70%">(<a id="cmt-ord-asc" href="#" onclick="return false;">oldest first</a> | <a id="cmt-ord-desc" href="#" onclick="return false;">newest first</a>) (<a id="cmt-threaded" href="#" onclick="return false;">threaded</a> | <a id="cmt-flat" href="#" onclick="return false;">flat</a>)</span></h3>
-			<div class="comments{if $threaded = ($_COOKIE['commentstructure'] ?? '') !== 'flat'} threaded{/if}{if ($_COOKIE['commentsort'] ?? '') === 'oldestfirst'} asc{else} desc{/if}">
+			<div class="comments{if $threaded = ($_COOKIE['commentstructure'] ?? '') !== 'flat'} threaded{/if}">
 				{if !empty($user)}
 				<div class="comment comment-editor editbox overlay-when-banned overlay-when-readonly" style="display:none;">
 					<div class="title">Add new comment:</div>
@@ -27,53 +27,28 @@ $visibleCommentCount = $showDeleted ? count($comments) : array_reduce($comments,
 
 	if($threaded) \{
 		// :MirroredLayouting
-		$oldestFirst = ($_COOKIE['commentsort'] ?? '') === 'oldestfirst';
-		if($oldestFirst) \{
-			$depthStack = [];
+		$depthStack = [];
 
-			foreach($comments as $i => $comment) \{
-				for(; count($depthStack) && $depthStack[count($depthStack) - 1] >= $comment['responseDepth']; array_pop($depthStack)) \{
-					?></div><?php
-				}
-
-				if($comment['children'] > 0) \{
-					?><div class="convo"><?php
-					array_push($depthStack, $comment['responseDepth']);
-				}
-
-				if(!$comment['deleted'] || $showDeleted) \{
-					$view->assign('i', $i, null, true);
-					$view->assign('comment', $comment, null, true);
-					$view->load('comment');
-				}
+		foreach($comments as $i => $comment) \{
+			for(; count($depthStack) && $depthStack[count($depthStack) - 1] >= $comment['responseDepth']; array_pop($depthStack)) \{
+				?></div><?php
 			}
 
-			for($i = 0; $i < count($depthStack); $i++) \{
-				?></div><?php
+			if($comment['children'] > 0) \{
+				?><div class="convo"><?php
+				array_push($depthStack, $comment['responseDepth']);
+			}
+
+			if(!$comment['deleted'] || $showDeleted) \{
+
+				$view->assign('i', $i, null, true);
+				$view->assign('comment', $comment, null, true);
+				$view->load('comment');
 			}
 		}
-		else \{ // newestfirst
-			$currentDepth = 0;
 
-			foreach($comments as $i => $comment) \{
-				for(; $comment['responseDepth'] > $currentDepth; $currentDepth++) \{
-					?><div class="convo"><?php
-				}
-
-				if(!$comment['deleted'] || $showDeleted) \{
-					$view->assign('i', $i, null, true);
-					$view->assign('comment', $comment, null, true);
-					$view->load('comment');
-				}
-
-				for(; $comment['responseDepth'] < $currentDepth; $currentDepth--) \{
-					?></div><?php
-				}
-			}
-
-			for(; $currentDepth > 0; $currentDepth--) \{
-				?></div><?php
-			}
+		for($i = 0; $i < count($depthStack); $i++) \{
+			?></div><?php
 		}
 	}
 	else \{

@@ -70,37 +70,19 @@
 		gap: .5em;
 		align-items: stretch;
 	}
-}
 
-.convo {
-	@at-root .comments & {
+	.convo {
 		border: solid var(--color-border);
 		border-radius: 2px 0 0 2px;
-	}
-
-	@at-root .comments.asc & {
 		border-width: 0 0 1px 1px;
-	}
-	@at-root .comments.desc & {
-		border-width: 1px 0 0 1px;
-	}
-	>* {
-		@at-root .comments & {
+	
+		>* {
 			margin-left: 1rem;
-		}
-
-		@at-root .comments.asc & {
-			// merge borders
+	
+			// // merge borders
 			&:first-child { margin-left: -1px; }
 			&:last-child { margin-bottom: -1px; }
 		}
-
-		@at-root .comments.desc & {
-			// merge borders
-			&:last-child { margin-left: -1px; }
-			&:first-child { margin-top: -1px; }
-		}
-
 	}
 }
 

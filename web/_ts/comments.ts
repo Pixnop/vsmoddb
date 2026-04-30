@@ -26,73 +26,56 @@ function attachCommentHandlers() {
 			container.replaceChildren(); // clear
 
 			// :MirroredLayouting
-			if(oldestFirst) {
-				const sorted = comments.sort(function (a, b) {
-					var dt = parseFloat(a.dataset.order!) - parseFloat(b.dataset.order!);
-					return dt < 0 ? -1 : dt > 0 ? 1 : 0;
-				});
+			const sorted = comments.sort(function (a, b) {
+				var dt = parseFloat(a.dataset.order!) - parseFloat(b.dataset.order!);
+				return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+			});
 
-				const depthStack = [] as number[];
-				let pushTargetEl = container;
+			const depthStack = [] as number[];
+			const newRoot = R.make('div');
+			let pushTargetEl = newRoot;
 
-				for(const comment of sorted) {
-					const responseDepth = parseInt(comment.dataset.d!);
-					for(; depthStack.length && depthStack[depthStack.length - 1] >= responseDepth; depthStack.pop()) {
-						pushTargetEl = pushTargetEl.parentElement!;
-					}
-
-					if(parseInt(comment.dataset.cldn!)) {
-						const wrapper = R.make('div.convo');
-
-						pushTargetEl.appendChild(wrapper);
-						pushTargetEl = wrapper;
-						
-						depthStack.push(responseDepth);
-					}
-
-					pushTargetEl.appendChild(comment);
+			for(const comment of sorted) {
+				const responseDepth = parseInt(comment.dataset.d!);
+				for(; depthStack.length && depthStack[depthStack.length - 1] >= responseDepth; depthStack.pop()) {
+					pushTargetEl = pushTargetEl.parentElement!;
 				}
-			}
-			else {
-				const sorted = comments.sort(function (a, b) {
-					var dt = parseFloat(b.dataset.order!) - parseFloat(a.dataset.order!);
-					return dt < 0 ? -1 : dt > 0 ? 1 : 0;
-				});
 
-				let currentDepth = 0;
-				let pushTargetEl = container;
+				if(parseInt(comment.dataset.cldn!)) {
+					const wrapper = R.make('div.convo');
 
-				for(const comment of sorted) {
-					const responseDepth = parseInt(comment.dataset.d!);
-					for(; responseDepth > currentDepth; currentDepth++) {
-						const wrapper = R.make('div.convo');
-
-						pushTargetEl.appendChild(wrapper);
-						pushTargetEl = wrapper;
-					}
-
-					pushTargetEl.appendChild(comment);
-
-					for(; responseDepth < currentDepth; currentDepth--) {
-						pushTargetEl = pushTargetEl.parentElement!;
-					}
+					pushTargetEl.appendChild(wrapper);
+					pushTargetEl = wrapper;
+					
+					depthStack.push(responseDepth);
 				}
+
+				pushTargetEl.appendChild(comment);
 			}
+
+			newChildren = Array.from(newRoot.children as HTMLCollectionOf<HTMLElement>);
+			newChildren = oldestFirst 
+				? newChildren.sort(function (a, b) {
+					var dt = parseInt(a.dataset.stamp || (a.firstElementChild as HTMLElement)!.dataset.stamp!) - parseInt(b.dataset.stamp || (b.firstElementChild as HTMLElement)!.dataset.stamp!);
+					return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+				})
+				: newChildren.sort(function (a, b) {
+					var dt = parseInt(b.dataset.stamp || (b.firstElementChild as HTMLElement)!.dataset.stamp!) - parseInt(a.dataset.stamp || (a.firstElementChild as HTMLElement)!.dataset.stamp!);
+					return dt < 0 ? -1 : dt > 0 ? 1 : 0;
+				})
+			;
+
+			container.replaceChildren(...newChildren)
 		}
-
 	}
 
 	R.get('cmt-ord-desc')!.addEventListener('click', e => {
 		e.preventDefault();
-		container.classList.remove('asc');
-		container.classList.add('desc');
 		$.cookie("commentsort", "newestfirst", { expires: 365, path: '/' });
 		updateCommentOrder();
 	});
 	R.get('cmt-ord-asc')!.addEventListener('click', e => {
 		e.preventDefault();
-		container.classList.remove('desc');
-		container.classList.add('asc');
 		$.cookie("commentsort", "oldestfirst", { expires: 365, path: '/' });
 		updateCommentOrder();
 	});
