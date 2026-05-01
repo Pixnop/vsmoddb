@@ -40,8 +40,14 @@ if($urlparts[0] === 'api') { // :ReservedUrlPrefixes
 
 include("lib/csp.php");
 
+
 //TODO(Rennorb) @cleanup @perf: Move view initialization here, after api branch.
+
+//NOTE(Rennorb): Technically we should only count the public mods, but in reality this probably doesn't matter for production and just counting all mods makes the query simpler.
+$view->assign('totalModCount', $con->getOne('SELECT COUNT(*) from mods'), null, true);
 $view->assign('headerHighlight', null, null, true);
+$view->assign("assetserver", $config['assetserver']);
+
 if(DB_READONLY) addMessage(MSG_CLASS_OK.' permanent', 'We are currently in readonly mode. All editing is disabled, but you can still browse and download.');
 
 
