@@ -3,6 +3,15 @@ global $config;
 
 $config["authserver"] = "auth.vintagestory.at";
 
+/**
+ * @param string $name
+ * @param mixed $default
+ */
+function _define_default($name, $default)
+{
+	if(!defined($name)) define($name, $default);
+}
+
 // For local development purposes create lib/config.dev.php and put your config in there. That file is automatically ignored by version control.
 // Have a look at lib/cdn/bunny.php for relevant CDN config options.
 
@@ -22,11 +31,13 @@ if (strstr($_SERVER["SERVER_NAME"], "mods.vintagestory.stage")) {
 	}
 	$config['noncesalt'] = 'xzy';
 
-	if (!defined("DEBUG")) define("DEBUG", 1);
-	if (!defined("DEBUGUSER")) define("DEBUGUSER", 1);
+	_define_default("DEBUG", 1);
+	_define_default("DEBUGUSER", 1);
 
-	if (!defined("MOD_SEARCH_INITIAL_RESULTS")) define("MOD_SEARCH_INITIAL_RESULTS", 10);
-	if (!defined("MOD_SEARCH_PAGE_SIZE")) define("MOD_SEARCH_PAGE_SIZE", 10);
+	_define_default("MOD_SEARCH_INITIAL_RESULTS", 10);
+	_define_default("MOD_SEARCH_PAGE_SIZE", 10);
+
+	_define_default("DOWNLOAD_DEDUPLICATION_TIMESPAN", 60); // seconds
 } else {
 	$config["database"] = "moddb";
 	define("CDN", "bunny");
@@ -37,16 +48,18 @@ if (strstr($_SERVER["SERVER_NAME"], "mods.vintagestory.stage")) {
 		include($filepath);
 	}
 
-	if (!defined("DEBUG")) define("DEBUG", 0);
+	_define_default("DEBUG", 0);
 	define("DEBUGUSER", 0);
 
-	if (!defined("MOD_SEARCH_INITIAL_RESULTS")) define("MOD_SEARCH_INITIAL_RESULTS", 200);
-	if (!defined("MOD_SEARCH_PAGE_SIZE")) define("MOD_SEARCH_PAGE_SIZE", 200);
+	_define_default("MOD_SEARCH_INITIAL_RESULTS", 200);
+	_define_default("MOD_SEARCH_PAGE_SIZE", 200);
+
+	_define_default("DOWNLOAD_DEDUPLICATION_TIMESPAN", 24*3600); // seconds
 }
 
-if(!defined("DB_READONLY")) define("DB_READONLY", false);
+_define_default("DB_READONLY", false);
 
-if(!defined("DISABLE_USER_TAGS")) define('DISABLE_USER_TAGS', true);
+_define_default('DISABLE_USER_TAGS', true);
 define("TAG_MODAUTHOR_VOTES", 1); // Not yet fully implemented, keep this at one.
-if(!defined("TAG_DOWNVOTED_THRESHOLD")) define("TAG_DOWNVOTED_THRESHOLD", 0);
-if(!defined("TAG_HIDE_THRESHOLD")) define("TAG_HIDE_THRESHOLD", -20);
+_define_default("TAG_DOWNVOTED_THRESHOLD", 0);
+_define_default("TAG_HIDE_THRESHOLD", -20);

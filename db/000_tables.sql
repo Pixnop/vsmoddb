@@ -295,12 +295,10 @@ ENGINE = InnoDB;
 
 
 CREATE TABLE IF NOT EXISTS `fileDownloadTracking` (
-  `ipAddress`    VARCHAR(255) NOT NULL,
+  `ipAddress`    INET6        NOT NULL,
   `fileId`       INT          NOT NULL,
   `lastDownload` DATETIME     NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (`ipAddress`, `fileId`),
-  INDEX `ipaddress` (`ipAddress`),
-  INDEX `fileid` (`fileId`),
+  INDEX `identifier` (`fileId`, `ipAddress`, `lastDownload`),
   INDEX `lastDownload` (`lastDownload`)
 )
 ENGINE = InnoDB;
