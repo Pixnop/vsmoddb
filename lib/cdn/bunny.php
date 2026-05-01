@@ -214,13 +214,13 @@ function bunny_pullLogsAndUpdateDownloadNumbers($date)
 		if (!$file) exit('file not found');
 		$fileId = $file['fileId'];
 
-		$lastDownload = $con->getOne('SELECT lastDownload FROM fileDownloadTracking WHERE fileId = ? and ipAddress = ?', [$fileId, $remoteip]);
+		$lastDownload = $con->getOne('SELECT UNIX_TIMESTAMP(lastDownload) FROM fileDownloadTracking WHERE fileId = ? and ipAddress = ?', [$fileId, $remoteip]);
 
 		$countAsSeparateDownload = false;
 		if (!$lastDownload) {
 			$countAsSeparateDownload = true;
 			$con->Execute('INSERT INTO fileDownloadTracking (lastUpdate, fileId, ipAddress) VALUES (?, ?, ?)', [$date, $fileId, $remoteip]);
-		} else if ($time - strtotime($lastDownload) > 24*3600) {
+		} else if ($time - $lastDownload > 24*3600) {
 			$countAsSeparateDownload = true;
 			$con->Execute('UPDATE fileDownloadTracking SET lastDownload = ? WHERE fileId = ? and ipAddress = ?', [$date, $fileId, $remoteip]);
 		}

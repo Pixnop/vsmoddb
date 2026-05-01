@@ -20,13 +20,13 @@ if(!DB_READONLY) {
 	// do download tracking
 	$identifier = [$fileId, $_SERVER['REMOTE_ADDR']];
 
-	$lastDownload = $con->getOne('SELECT lastDownload FROM fileDownloadTracking WHERE fileId = ? AND ipAddress = ?', $identifier);
+	$lastDownload = $con->getOne('SELECT UNIX_TIMESTAMP(lastDownload) FROM fileDownloadTracking WHERE fileId = ? AND ipAddress = ?', $identifier);
 
 	$countAsSeparateDownload = false;
 	if (!$lastDownload) {
 		$countAsSeparateDownload = true;
 		$con->execute('INSERT INTO fileDownloadTracking (fileId, ipAddress) VALUES (?, ?)', $identifier);
-	} else if (time() - strtotime($lastDownload) > 24*3600) {
+	} else if (time() - $lastDownload > 24*3600) {
 		$countAsSeparateDownload = true;
 		//TODO(Rennorb) @correctness: This does not produce the correct result for trending points.
 		$con->execute('UPDATE fileDownloadTracking SET lastDownload = NOW() WHERE fileId = ? and ipAddress = ?', $identifier);
