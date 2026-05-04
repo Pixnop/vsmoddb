@@ -58,8 +58,16 @@
 		</div>
 	{/if}
 
-	<input class="tab-trigger" id="tab-description" type="radio" name="tab" autocomplete="off">
+	<input class="tab-trigger" id="tab-description" type="radio" name="tab" checked="true" autocomplete="off">
 	<input class="tab-trigger" id="tab-files" type="radio" name="tab" autocomplete="off">
+
+	<script nonce="{$cspNonce}">
+		document.getElementById(location.hash !== '#tab-files' ? 'tab-description' : 'tab-files').checked = true;
+		window.addEventListener('pageshow', e => {
+			if(e.persisted) document.getElementById(location.hash === '#tab-files' ? 'tab-files' : 'tab-description').checked = true;
+		});
+	</script>
+
 
 	<ul class="tabs no-mark">
 		<li><label for="tab-description" onclick="location.hash = 'tab-description'">Description</label></li>
@@ -83,7 +91,6 @@
 
 	<div class="tab-container">
 		<div class="tab-content description">
-			<script nonce="{$cspNonce}">if(location.hash !== '#tab-files') document.getElementById('tab-description').checked = true;</script>
 			<div style="float: right; margin-bottom: 1em;">
 				{if isset($user) && canEditAsset($asset, $user)}
 					<a class="button large shine strikethrough-when-banned strikethrough-when-readonly" href="/edit/mod/?assetid={$asset['assetId']}">Edit</a>&nbsp;
@@ -182,7 +189,6 @@
 		</div>
 
 		<div class="tab-content files">
-			<script nonce="{$cspNonce}">if(location.hash === '#tab-files') document.getElementById('tab-files').checked = true;</script>
 			<div style="float: right; margin-bottom: 1em;">
 				{if isset($user) && canEditAsset($asset, $user)}
 					<a class="button large shine strikethrough-when-banned strikethrough-when-readonly" href="/edit/release/?modid={$asset['modId']}">Add release</a>
