@@ -1,6 +1,7 @@
 <?php
 
 include $config['basepath']. 'lib/recommend-release.php';
+include_once $config['basepath']. 'lib/relations.php';
 
 $assetId = $urlparts[2] ?? 0;
 
@@ -304,6 +305,18 @@ cspPushAllowedInlineHandlerHash('sha256-94NvHZFeRkm6w/lzsqG4nAxFmD5kBzGoK6eIsReP
 cspAllowFotorama();
 
 $view->assign('pagetitle', "{$asset['name']} - ");
+
+$relationsList = getRelationsForLatestReleaseOfMod(intval($asset['modId']));
+$relations = [
+	REL_REQUIRED     => [],
+	REL_OPTIONAL     => [],
+	REL_INCOMPATIBLE => [],
+	REL_TESTED_WITH  => [],
+];
+foreach ($relationsList as $rel) {
+	$relations[$rel['relationType']][] = $rel;
+}
+$view->assign('relations', $relations);
 
 $view->display("show-mod");
 

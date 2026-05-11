@@ -1,7 +1,7 @@
 R.onDOMLoaded(function() {
 	// Turn all selects that are not within a template into jquery-chosen selects:
 	$("select").each(function() {
-		if ($(this).parents(".template").length == 0) {
+		if ($(this).parents(".template").length == 0 && !$(this).hasClass("no-chosen")) {
 			var ds = $(this).attr("noSearch") == 'noSearch';
 			$(this).chosen({ placeholder_text_multiple: " ", disable_search:ds, });
 		}

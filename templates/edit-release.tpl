@@ -110,7 +110,14 @@
 
 		<h3 class="flex-fill">Files {if $release['assetId']}<small>(changes apply immediately!)</small>{/if}{if false /*:ZipDownloadDisabled*/ && (count($files) > 0)}<span style="float:right; font-size:70%;">(<a href="/download?assetid={$release['assetId']}">download all as zip</a>)</span>{/if}</h3>
 
-		{include file="edit-asset-files.tpl" formupload="1"}	
+		{include file="edit-asset-files.tpl" formupload="1"}
+
+		{if $release['assetId']}
+		<h3 class="flex-fill">Mod relations</h3>
+		<div class="editbox flex-fill">
+			{include file="edit-release-relations" autoRelations=$autoRelations manualRelations=$manualRelations}
+		</div>
+		{/if}
 	</form>
 
 	{if $release['assetId']} 
