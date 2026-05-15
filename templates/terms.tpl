@@ -37,7 +37,14 @@
 	<li>Keep it kind and civil; excessive cursing is frowned upon.</li>
 	<li>Do not advocate for piracy of the game or any other software.</li>
 	<li>Self promotion for your own creations/mods, within limits, is permitted as long as it does not violate any other terms.</li>
+	<li>Do not provoke moderators. This will lead to immediate bans without warning.</li>
 </ol>
+<p>
+	Beyond that, we ask you to respect the decisions of our moderator team, even if they are not covered by above rules.<br/>
+	If you feel you've been treated unjustly or would like to submit a ban appeal, you may <a class="external" href="https://www.vintagestory.at/support" target="_blank">open a ticket</a>.<br/>
+	If you see someone violating the rules do let a moderator know through our <a class="external" href="https://discord.com/channels/302152934249070593/1342078718427795477" target="_blank">support ticket system on discord</a>.
+</p>
+<p>See <a class="external" href="https://discord.com/channels/302152934249070593/461964580814585867/461965592132321280" target="_blank">the rules on Discord</a> for the most up to date version of the community rules.<p>
 
 <p style="margin-top: 2em;">
 	Anego Studios reserves the right to restrict any user violating any of these terms from accessing the game and any platform related to it, as well as remove their content form any such platform without notice.<br/>
