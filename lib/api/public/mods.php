@@ -8,6 +8,12 @@ const ERROR_SPEC_NOT_FOUND             = 4041;
 const ERROR_RELEASE_RETRACTED          = 4101;
 const ERROR_RELEASE_RETRACTED_FORCED   = 4102;
 
+function canIgnoreRetraction($release)
+{
+	// Allow overwriting retractions only if it wasn't recrated by a moderator, unless that moderator is also the mod owner:
+	return ($release['retractedByRoleId'] !== ROLE_ADMIN && $release['retractedByRoleId'] !== ROLE_MODERATOR) || $release['retractedByUserId'] === $release['createdByUserId'];
+}
+
 switch($urlparts[0]) {
 	case 'install-information':
 		validateMethod('GET');
@@ -18,7 +24,7 @@ switch($urlparts[0]) {
 			if(!$gameVersion) fail(HTTP_BAD_REQUEST, ['reason' => 'Invalid game version.']);
 		}
 
-		$ignoreRetraction = boolval($_GET['ignore-retractions'] ?? false);
+		$ignoreRetraction = boolval($_GET['ignore-retractions'] ?? false); // TODO(Rennorb) @cleanup: avoid round trip for retractions. just send the links if it can be ignored the first time round. 
 		$hostedMode = boolval($_GET['hosted-mode'] ?? false);
 
 		if(empty($_GET['ids']))  fail(HTTP_BAD_REQUEST, ['reason' => 'Missing ids.']);
@@ -65,13 +71,6 @@ switch($urlparts[0]) {
 		}
 
 		$VERSION_MASK_PRERELEASE = VERSION_MASK_PRERELEASE;
-
-		function canIgnoreRetraction($release)
-		{
-			// Allow overwriting retractions only if it wasn't recrated by a moderator, unless that moderator is also the mod owner:
-			return ($release['retractedByRoleId'] !== ROLE_ADMIN && $release['retractedByRoleId'] !== ROLE_MODERATOR) || $release['retractedByUserId'] === $release['createdByUserId'];
-		}
-
 
 		//NOTE(Rennorb): The trick to selecting all requested mods at once here is to form two almost identical queries, 
 		// then join them onto each other under the condition that the second one finds a higher version than the first.
@@ -236,91 +235,125 @@ switch($urlparts[0]) {
 
 		good(['data' => $result]);
 
-	default:
-		// /api/v2/mods/{modId}/releases[/{releaseId}|/latest]
+	default: 
+		// /mods/{modId}
 		$modId = filter_var($urlparts[0], FILTER_VALIDATE_INT);
-		if($modId === false) break;
-		if(!isset($urlparts[1]) || $urlparts[1] !== 'releases') break;
+		if(!$modId) break; // fallthrough into the authenticated section.
 
-		validateMethod('GET');
+		switch($urlparts[1] ?? null) {
+			case 'releases': // /mods/{modId}/releases
+				switch($_SERVER['REQUEST_METHOD']) {
+					case 'GET':
+						$modExists = $con->getOne("
+							SELECT 1
+							FROM mods m
+							JOIN assets a ON a.assetId = m.assetId AND a.statusId = ".STATUS_RELEASED."
+							WHERE modId = $modId
+						"); // @security $modId is validated to be int, therefore sql inert.
 
-		$releaseSegment = $urlparts[2] ?? null;
+						if(!$modExists)   fail(HTTP_NOT_FOUND, ['reason' => 'Mod not found or not released.']);
 
-		if($releaseSegment === null) {
-			// GET /api/v2/mods/{modId}/releases — list release IDs
-			$releases = $con->getAll(<<<SQL
-				SELECT r.releaseId
-				FROM modReleases r
-				LEFT JOIN modReleaseRetractions rr ON rr.releaseId = r.releaseId
-				WHERE r.modId = ? AND rr.reason IS NULL
-				ORDER BY r.version DESC
-			SQL, [$modId]);
 
-			good(['data' => array_map(fn($r) => intval($r['releaseId']), $releases)]);
+						switch(count($urlparts)) {
+							case 2:
+								// list endpoint /mods/{modId}/releases
+
+								$queryJoins = '';
+								$queryWhere = 'r.modId = '.$modId; // @security: $modId is validated to be int, therefore sql inert.
+
+								if(boolval($_GET['ignore-retractions'] ?? false)) {
+									// Allow overwriting retractions only if it wasn't recrated by a moderator, unless that moderator is also the mod owner:
+									$queryJoins .= ' JOIN assets a ON a.assetId = r.assetId LEFT JOIN users ru ON ru.userId = rr.lastModifiedBy';
+									$queryWhere .= ' AND (rr.reason IS NULL OR (ru.roleId != '.ROLE_ADMIN.' AND ru.roleId != '.ROLE_MODERATOR.') OR rr.lastModifiedBy = a.createdByUserId)';
+								}
+								else {
+									$queryWhere .= ' AND rr.reason IS NULL';
+								}
+
+								$releases = $con->getAssoc(<<<SQL
+									SELECT r.releaseId, r.identifier, r.version,
+										rr.reason AS retractionReason
+									FROM modReleases r
+									LEFT JOIN modReleaseRetractions rr ON rr.releaseId = r.releaseId
+									$queryJoins
+									WHERE $queryWhere
+									ORDER BY r.version DESC
+								SQL);
+
+								foreach($releases as &$release) {
+									$release['version'] = formatSemanticVersion($release['version']);
+									if(!$release['retractionReason']) unset($release['retractionReason']);
+								}
+								unset($release);
+
+								good($releases, JSON_FORCE_OBJECT);
+							
+							case 3: // GET specific release
+								$queryWhere = 'r.modId = '.$modId; // @security: $modId filtered to be int, therefore sql inert.
+								$queryParams = [];
+
+								if($urlparts[2] === 'latest') { // /mods/{modId}/releases/latest
+									//NOTE(Rennorb): The latest release is already selected by the order by clause if we don't specify a releaseId in the where clause.
+
+									if($identifier = $_GET['identifier'] ?? '') {
+										$queryWhere .= ' AND r.identifier = ?';
+										$queryParams[] = $identifier;
+									}
+
+									if(!boolval($_GET['ignore-retractions'] ?? false)) {
+										$queryWhere .= ' AND (rr.reason IS NULL OR (ru.roleId != '.ROLE_ADMIN.' AND ru.roleId != '.ROLE_MODERATOR.') OR rr.lastModifiedBy = a.createdByUserId)'; // a copy of canIgnoreRetraction in sql
+									}
+								}
+								else if($releaseId = filter_var($urlparts[2], FILTER_VALIDATE_INT)) { // /mods/{modId}/releases/{releaseId}
+									$queryWhere = 'r.releaseId = '.$releaseId; // @security: $releaseId filtered to be int, therefore sql inert.
+								}
+								else {
+									fail(HTTP_BAD_REQUEST, ['reason' => 'Malformed releaseId.']);
+								}
+
+								$release = $con->getRow(<<<SQL
+									SELECT r.releaseId, r.identifier, r.version, UNIX_TIMESTAMP(r.created) AS created,
+										f.fileId, f.name,
+										rr.reason AS retractionReason, ru.roleId AS retractedByRoleId, rr.lastModifiedBy AS retractedByUserId, a.createdByUserId,
+										GROUP_CONCAT(cgv.gameVersion ORDER BY cgv.gameVersion DESC SEPARATOR ';') AS compatibleGameVersions
+									FROM modReleases r
+									JOIN assets a ON a.assetId = r.assetId
+									LEFT JOIN files f ON f.assetId = r.assetId
+									LEFT JOIN modReleaseRetractions rr ON rr.releaseId = r.releaseId
+									LEFT JOIN users ru ON ru.userId = rr.lastModifiedBy
+									LEFT JOIN modReleaseCompatibleGameVersions cgv ON cgv.releaseId = r.releaseId
+									WHERE $queryWhere
+									GROUP BY r.releaseId
+									ORDER BY r.version DESC
+									LIMIT 1
+								SQL, $queryParams);
+
+								if(!$release) fail(HTTP_NOT_FOUND, ['reason' => 'Release not found.']);
+
+								$response = [
+									'releaseId'  => intval($release['releaseId']),
+									'identifier' => $release['identifier'],
+									'version'    => formatSemanticVersion(intval($release['version'])),
+									'compatibleGameVersions' => $release['compatibleGameVersions']
+										? array_map(fn($v) => formatSemanticVersion(intval($v)), explode(';', $release['compatibleGameVersions']))
+										: [],
+									'created'    => intval($release['created']),
+								];
+
+								if($release['retractionReason']) {
+									$response['retractionReason'] = $release['retractionReason'];
+								}
+
+								if(!$release['retractionReason'] || canIgnoreRetraction($release)) {
+									$response['fileName'] = $release['name'];
+									$response['fileUrl']  = $release['fileId'] ? formatDownloadTrackingUrl($release) : null;
+								}
+
+								good($response);
+
+							default:
+								break; // fall though to authenticated eps. maybe TODO(Rennorb) @cleanup: merge auch / public? 
+						}
+				}
 		}
-
-		if($releaseSegment === 'latest') {
-			// GET /api/v2/mods/{modId}/releases/latest — latest non-retracted release
-			$release = $con->getRow(<<<SQL
-				SELECT r.releaseId, r.identifier, r.version, r.created,
-					f.fileId, f.name,
-					GROUP_CONCAT(cgv.gameVersion ORDER BY cgv.gameVersion DESC SEPARATOR ';') AS compatibleGameVersions
-				FROM modReleases r
-				LEFT JOIN files f ON f.assetId = r.assetId
-				LEFT JOIN modReleaseRetractions rr ON rr.releaseId = r.releaseId
-				LEFT JOIN modReleaseCompatibleGameVersions cgv ON cgv.releaseId = r.releaseId
-				WHERE r.modId = ? AND rr.reason IS NULL
-				GROUP BY r.releaseId
-				ORDER BY r.version DESC
-				LIMIT 1
-			SQL, [$modId]);
-
-			if(!$release) fail(HTTP_NOT_FOUND, ['reason' => 'No non-retracted release found.']);
-
-			good(['data' => [
-				'releaseId'  => intval($release['releaseId']),
-				'identifier' => $release['identifier'],
-				'version'    => formatSemanticVersion(intval($release['version'])),
-				'fileName'   => $release['name'],
-				'fileUrl'    => $release['fileId'] ? formatDownloadTrackingUrl($release) : null,
-				'compatibleGameVersions' => $release['compatibleGameVersions']
-					? array_map(fn($v) => formatSemanticVersion(intval($v)), explode(';', $release['compatibleGameVersions']))
-					: [],
-				'created'    => $release['created'],
-			]]);
-		}
-
-		// GET /api/v2/mods/{modId}/releases/{releaseId}
-		$releaseId = filter_var($releaseSegment, FILTER_VALIDATE_INT);
-		if($releaseId === false) break;
-
-		$release = $con->getRow(<<<SQL
-			SELECT r.releaseId, r.identifier, r.version, r.created,
-				f.fileId, f.name,
-				rr.reason AS retractionReason,
-				GROUP_CONCAT(cgv.gameVersion ORDER BY cgv.gameVersion DESC SEPARATOR ';') AS compatibleGameVersions
-			FROM modReleases r
-			LEFT JOIN files f ON f.assetId = r.assetId
-			LEFT JOIN modReleaseRetractions rr ON rr.releaseId = r.releaseId
-			LEFT JOIN modReleaseCompatibleGameVersions cgv ON cgv.releaseId = r.releaseId
-			WHERE r.releaseId = ? AND r.modId = ?
-			GROUP BY r.releaseId
-		SQL, [$releaseId, $modId]);
-
-		if(!$release) fail(HTTP_NOT_FOUND, ['reason' => 'Release not found.']);
-
-		$data = [
-			'releaseId'  => intval($release['releaseId']),
-			'identifier' => $release['identifier'],
-			'version'    => formatSemanticVersion(intval($release['version'])),
-			'fileName'   => $release['name'],
-			'fileUrl'    => $release['fileId'] ? formatDownloadTrackingUrl($release) : null,
-			'compatibleGameVersions' => $release['compatibleGameVersions']
-				? array_map(fn($v) => formatSemanticVersion(intval($v)), explode(';', $release['compatibleGameVersions']))
-				: [],
-			'created'    => $release['created'],
-		];
-		if($release['retractionReason']) $data['retractionReason'] = $release['retractionReason'];
-
-		good(['data' => $data]);
 }

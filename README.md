@@ -134,59 +134,63 @@ String example: http://mods.vintagestory.at/api/mod/carrycapacity
 
 
 ### /api/v2/mods/{modid}/releases
-- `get`: Path arg `{modid}` (numeric)
-	- `200`: json array of non-retracted release IDs (ordered by version descending, empty if mod has no releases or does not exist):
-		```json
-		{"data": [456, 123, 89]}
-		```
-
-### /api/v2/mods/{modid}/releases/latest
-- `get`: Path arg `{modid}` (numeric)
-	- `404`: No non-retracted release found.
-	- `200`: json of the latest non-retracted release:
+- `get`: 
+	- Args:
+		- Path arg `{modid}` (numeric)
+		- Optional get arg `ignore-retraction`: truthy value to include retracted releases where the retraction may be ignored.
+	- `404`: Mod not found.
+	- `200`: json map keyed by release id:
 		```json
 		{
-			"data": {
-				"releaseId": 456,
-				"identifier": "carrycapacity",
+			"12345": {
+				"identifier": "modidentifier",
+				"version": "1.2.3"
+			},
+			"12345": {
+				"identifier": "modidentifierlinux",
 				"version": "1.2.3",
-				"fileName": "carrycapacity-1.2.3.zip",
-				"fileUrl": "/download/789/carrycapacity-1.2.3.zip",
-				"compatibleGameVersions": ["1.20.7", "1.20.6"],
-				"created": "2025-01-15 12:00:00"
-			}
+				"retractionReason": "Corrupts game files."
+			},
 		}
 		```
-
-### /api/v2/mods/{modid}/releases/all
-- `get`: Path arg `{modid}`
-	- `400`: Not implemented
 
 ### /api/v2/mods/{modid}/releases/{releaseid}
 - `get`
 	- Args:
 		- Path arg `{modid}` (numeric)
 		- Path arg `{releaseid}` (numeric)
-	- `404`: Release not found.
-	- `200`: json of the release (same shape as /latest, plus `retractionReason` if retracted):
+	- `404`: Mod or release not found.
+	- `200`: json of the release:
 		```json
 		{
-			"data": {
-				"releaseId": 456,
-				"identifier": "carrycapacity",
-				"version": "1.2.3",
-				"fileName": "carrycapacity-1.2.3.zip",
-				"fileUrl": "/download/789/carrycapacity-1.2.3.zip",
-				"compatibleGameVersions": ["1.20.7", "1.20.6"],
-				"created": "2025-01-15 12:00:00",
-				"retractionReason": "..."
-			}
+			"releaseId": 456,
+			"identifier": "modidentifier",
+			"version": "1.2.3",
+			"fileName": "modidentifier-1.2.3.zip",
+			"fileUrl": "/download/123/modidentifier-1.2.3.zip",
+			"compatibleGameVersions": ["1.20.7", "1.20.6"],
+			"created": 1758291166,
+			"retractionReason": "Corrupts game files."
 		}
 		```
+		If the release is retracted, a `retractionReason` is present. `fileName` and `fileUrl` might be absent, if the retraction cannot be ignored.
 - `post` `auth` `at`
 	- Args:
 		- Path arg `{modid}`
 		- Path arg `{releaseid}`
+	- `400`: Not implemented
+
+### /api/v2/mods/{modid}/releases/latest
+- `get`: 
+	- Args:
+		- Path arg `{modid}` (numeric)
+		- Optional get arg `ignore-retraction`: truthy value to include download information for retracted releases.
+		- Optional get arg `identifier`: identifier to select the latest release for (mods may host multiple identifiers).
+	- `404`: No non-retracted release found.
+	- `200`: same output as `GET /api/v2/mods/{modid}/releases/{releaseId}`
+
+### /api/v2/mods/{modid}/releases/all
+- `get`: Path arg `{modid}`
 	- `400`: Not implemented
 
 ### /api/v2/mods/{modid}/releases/new `auth` `at`
