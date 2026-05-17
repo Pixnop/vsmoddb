@@ -84,6 +84,22 @@ function cspAllowFotorama()
 	$_csp['style-src-elem'] = "'self' https: 'unsafe-inline' 'unsafe-eval'";
 }
 
+/**
+ * Cytoscape.js renders its graph with many dynamically-injected inline styles on its container
+ * elements; CSP blocks them otherwise. Call this on pages that mount a cytoscape canvas.
+ *
+ * Note: we cannot simply add 'unsafe-inline' alongside the nonce - CSP3 specifies that
+ * 'unsafe-inline' is ignored whenever a nonce is present. So this drops the nonce from style-src
+ * specifically; we keep stylesheets from us ('self') and the CDN explicitly whitelisted. Scripts
+ * still require the nonce.
+ */
+function cspAllowCytoscape()
+{
+	global $_csp;
+	$_csp['style-src']      = "'self' https: 'unsafe-inline'";
+	$_csp['style-src-elem'] = "'self' https: 'unsafe-inline'";
+}
+
 function _cspEmitHeader()
 {
 	global $_csp, $_cspInlineHashes;

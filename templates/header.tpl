@@ -49,6 +49,7 @@
 			<a href="/home"{if $headerHighlight === HEADER_HIGHLIGHT_HOME} class="active"{/if}>Home</a>
 			<a href="/list/mod"{if $headerHighlight === HEADER_HIGHLIGHT_MODS} class="active"{/if}>All Mods</a>
 			<a href="/list/mod?c=s"{if $headerHighlight === HEADER_HIGHLIGHT_TWEAKS} class="active"{/if}>Server Tweaks</a>
+			<a href="/dependency-graph"{if $headerHighlight === HEADER_HIGHLIGHT_DEPGRAPH} class="active"{/if}>Dependency Graph</a>
 			{if (!empty($user))}
 				<a href="/edit/mod" class="strikethrough-when-banned strikethrough-when-readonly{if $headerHighlight === HEADER_HIGHLIGHT_SUBMIT_MOD} active{/if}"><img src="/web/img/upload.png"><span>Submit a mod</span></a>
 			{/if}
