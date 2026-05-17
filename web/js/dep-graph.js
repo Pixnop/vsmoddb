@@ -79,8 +79,12 @@
 	var STYLE = [
 		{ selector: 'node', style: {
 			'background-color': '#aaa', 'label': 'data(label)',
-			'color': '#333', 'font-size': '13px', 'text-valign': 'bottom',
-			'text-margin-y': 8, 'width': 38, 'height': 38,
+			'color': '#333', 'font-size': '13px',
+			// text-valign/halign center so text-margin-x/y is the only positioning - auto-placement
+			// (and the shift+drag override) then push labels in any direction relative to the node.
+			'text-valign': 'center', 'text-halign': 'center',
+			'text-margin-y': 30,
+			'width': 38, 'height': 38,
 			'border-width': 1, 'border-color': '#666',
 			'text-wrap': 'wrap', 'text-max-width': '140px',
 			'text-background-color': '#fff8e8',
@@ -147,6 +151,96 @@
 			});
 			cy.on('tap', 'node', opts.onNodeTap || defaultNodeTap);
 			attachLabelDrag(cy);
+			// Re-place labels each time the layout settles or the user moves a node, so labels keep
+			// drifting toward the least-crowded side instead of always sitting under the circle.
+			cy.on('layoutstop', function() { autoPlaceLabels(cy); });
+			cy.on('dragfree', 'node', function(evt) { autoPlaceLabels(cy, evt.target); });
+		}
+
+		// Two-pass auto-placement.
+		// Pass 1: position each node's label opposite the centroid of its neighbors so it lands
+		// on the side with fewest edges.
+		// Pass 2: iteratively detect label-label bounding-box overlaps and push the offending
+		// labels apart along the line connecting their centers, until no overlap or maxIter hit.
+		// Nodes pinned via shift+drag are skipped.
+		function autoPlaceLabels(cyInstance, only) {
+			var moving = only ? cyInstance.collection([only]) : cyInstance.nodes().filter(function(n) { return !n.data('_labelPinned'); });
+			if (!moving.length) return;
+
+			// Pass 1: initial direction from neighbor centroid.
+			moving.forEach(function(node) {
+				var neighbors = node.openNeighborhood().nodes();
+				if (!neighbors.length) {
+					node.style({ 'text-margin-x': 0, 'text-margin-y': 30 });
+					return;
+				}
+				var p = node.position();
+				var sx = 0, sy = 0;
+				neighbors.forEach(function(nb) {
+					var np = nb.position();
+					sx += np.x - p.x;
+					sy += np.y - p.y;
+				});
+				var ax = sx / neighbors.length, ay = sy / neighbors.length;
+				var mag = Math.sqrt(ax * ax + ay * ay) || 1;
+				var dist = 28;
+				node.style({
+					'text-margin-x': -ax / mag * dist,
+					'text-margin-y': -ay / mag * dist
+				});
+			});
+
+			// Pass 2: relax label-label overlaps. Compare every pair of moving labels and push them
+			// along the connecting line until their bounding boxes no longer overlap.
+			var all = cyInstance.nodes();
+			var movingSet = {};
+			moving.forEach(function(n) { movingSet[n.id()] = true; });
+			for (var iter = 0; iter < 30; iter++) {
+				var anyOverlap = false;
+				for (var i = 0; i < all.length; i++) {
+					for (var j = i + 1; j < all.length; j++) {
+						var a = all[i], b = all[j];
+						var ba = labelBB(a), bb = labelBB(b);
+						if (ba.x2 < bb.x1 || bb.x2 < ba.x1 || ba.y2 < bb.y1 || bb.y2 < ba.y1) continue;
+						// overlap: push each label half the overlap distance away from the other
+						var cax = (ba.x1 + ba.x2) / 2, cay = (ba.y1 + ba.y2) / 2;
+						var cbx = (bb.x1 + bb.x2) / 2, cby = (bb.y1 + bb.y2) / 2;
+						var dx = cax - cbx, dy = cay - cby;
+						var d = Math.sqrt(dx * dx + dy * dy) || 1;
+						var overlapX = (ba.w + bb.w) / 2 - Math.abs(cax - cbx);
+						var overlapY = (ba.h + bb.h) / 2 - Math.abs(cay - cby);
+						var push = Math.min(overlapX, overlapY) / 2 + 1;
+						var nx = dx / d * push, ny = dy / d * push;
+						if (movingSet[a.id()]) shiftMargin(a, nx, ny);
+						if (movingSet[b.id()]) shiftMargin(b, -nx, -ny);
+						anyOverlap = true;
+					}
+				}
+				if (!anyOverlap) break;
+			}
+		}
+
+		function labelBB(node) {
+			var p = node.position();
+			var mx = parseFloat(node.style('text-margin-x')) || 0;
+			var my = parseFloat(node.style('text-margin-y')) || 0;
+			// Approx label box from the rendered text. Cytoscape doesn't expose label metrics
+			// directly; this is an estimate (avg char width ~7px at font-size 13, line height 16).
+			var label = node.data('label') || '';
+			var maxLineLen = label.split('\n').reduce(function(m, l) { return Math.max(m, l.length); }, 0);
+			if (!maxLineLen) maxLineLen = label.length;
+			var w = Math.min(140, Math.max(40, maxLineLen * 7)) + 6;
+			var lines = Math.ceil(label.length * 7 / 140);
+			var h = lines * 16 + 6;
+			var cx = p.x + mx, cy = p.y + my;
+			return { x1: cx - w / 2, y1: cy - h / 2, x2: cx + w / 2, y2: cy + h / 2, w: w, h: h };
+		}
+
+		function shiftMargin(node, dx, dy) {
+			node.style({
+				'text-margin-x': (parseFloat(node.style('text-margin-x')) || 0) + dx,
+				'text-margin-y': (parseFloat(node.style('text-margin-y')) || 0) + dy
+			});
 		}
 
 		// Shift+drag on a node moves its label only (text-margin-x/y), not the node itself.
@@ -175,6 +269,7 @@
 			});
 			cyInstance.on('tapend', function() {
 				if (!drag) return;
+				drag.node.data('_labelPinned', true); // opt out of auto-placement going forward
 				drag.node.grabify();
 				drag = null;
 			});
