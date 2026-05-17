@@ -60,18 +60,24 @@
 
 	<input class="tab-trigger" id="tab-description" type="radio" name="tab" checked="true" autocomplete="off">
 	<input class="tab-trigger" id="tab-files" type="radio" name="tab" autocomplete="off">
+	<input class="tab-trigger" id="tab-graph" type="radio" name="tab" autocomplete="off">
 
 	<script nonce="{$cspNonce}">
-		document.getElementById(location.hash !== '#tab-files' ? 'tab-description' : 'tab-files').checked = true;
-		window.addEventListener('pageshow', e => {
-			if(e.persisted) document.getElementById(location.hash === '#tab-files' ? 'tab-files' : 'tab-description').checked = true;
-		});
+		(function() {
+			var byHash = { '#tab-files': 'tab-files', '#tab-graph': 'tab-graph' };
+			var initial = byHash[location.hash] || 'tab-description';
+			document.getElementById(initial).checked = true;
+			window.addEventListener('pageshow', function(e) {
+				if (e.persisted) document.getElementById(byHash[location.hash] || 'tab-description').checked = true;
+			});
+		})();
 	</script>
 
 
 	<ul class="tabs no-mark">
 		<li><label for="tab-description" onclick="location.hash = 'tab-description'">Description</label></li>
 		<li><label for="tab-files" onclick="location.hash = 'tab-files'">Files</label></li>
+		<li><label for="tab-graph" onclick="location.hash = 'tab-graph'">Graph</label></li>
 		{if $asset['homepageUrl']}
 			<li><a class="external" rel="external nofollow" target="_blank" href="{$asset['homepageUrl']}">Homepage</a></li>
 		{/if}
@@ -285,6 +291,23 @@
 
 			<div style="clear:both;"></div>
 		</div>
+
+		<div class="tab-content graph dep-graph-tab">
+			<div class="dep-graph-toolbar">
+				<div class="legend">
+					<span class="required">required</span>
+					<span class="optional">optional</span>
+					<span class="incompatible">incompatible</span>
+					<span class="tested_with">tested with</span>
+				</div>
+				<div style="flex:1"></div>
+				<button type="button" id="dep-graph-fit" title="Fit graph in view">Fit</button>
+				<button type="button" id="dep-graph-png" title="Download a PNG of the current view">Export PNG</button>
+			</div>
+			<div id="dep-graph-canvas" data-modid="{$asset['modId']}" data-csp-nonce="{$cspNonce}">
+				<div class="dep-graph-loading">Loading dependency graph...</div>
+			</div>
+		</div>
 	</div>
 
 	<div style="clear:both;"></div>
@@ -346,6 +369,111 @@
 				});
 			});
 		});
+
+		// Dependency graph: lazy-init when the Graph tab is first activated.
+		(function() {
+			var graphTrigger = document.getElementById('tab-graph');
+			var canvas = document.getElementById('dep-graph-canvas');
+			if (!graphTrigger || !canvas) return;
+
+			var inited = false;
+			var cy = null;
+
+			function setStatus(klass, text) {
+				while (canvas.firstChild) canvas.removeChild(canvas.firstChild);
+				var div = document.createElement('div');
+				div.className = klass;
+				div.textContent = text;
+				canvas.appendChild(div);
+			}
+
+			function ensureLoaded(cb) {
+				if (typeof cytoscape !== 'undefined') return cb();
+				var s = document.createElement('script');
+				s.src = '/web/js/cytoscape.min.js';
+				s.nonce = canvas.dataset.cspNonce;
+				s.onload = cb;
+				s.onerror = function() { setStatus('dep-graph-error', 'Failed to load Cytoscape library.'); };
+				document.head.appendChild(s);
+			}
+
+			function render() {
+				var modId = canvas.dataset.modid;
+				$.get('/api/v2/mods/dependency-graph?modid=' + encodeURIComponent(modId))
+					.done(function(data) {
+						if (!data.nodes || !data.nodes.length) {
+							setStatus('dep-graph-empty', 'No relations declared yet for this mod.');
+							return;
+						}
+						while (canvas.firstChild) canvas.removeChild(canvas.firstChild);
+						var elements = [];
+						data.nodes.forEach(function(n) {
+							elements.push({ data: {
+								id: n.id, label: n.label, isLocal: !!n.isLocal,
+								modId: n.modId || 0, urlAlias: n.urlAlias || '',
+								version: n.latestVersion || '', focus: (n.modId == modId)
+							}});
+						});
+						data.edges.forEach(function(e, i) {
+							elements.push({ data: { id: 'e'+i, source: e.from, target: e.to, type: e.type } });
+						});
+
+						cy = cytoscape({
+							container: canvas,
+							elements: elements,
+							style: [
+								{ selector: 'node', style: {
+									'background-color': '#aaa', 'label': 'data(label)',
+									'color': '#333', 'font-size': '11px', 'text-valign': 'bottom',
+									'text-margin-y': 4, 'width': 24, 'height': 24,
+									'border-width': 1, 'border-color': '#666'
+								}},
+								{ selector: 'node[?isLocal]', style: { 'background-color': '#3d6594', 'border-color': '#234166' }},
+								{ selector: 'node[?focus]', style: { 'background-color': '#c4925e', 'border-color': '#8a5e2e', 'border-width': 2, 'width': 32, 'height': 32 }},
+								{ selector: 'node[!isLocal]', style: { 'font-style': 'italic', 'background-color': '#ddd', 'border-color': '#aaa' }},
+								{ selector: 'edge', style: {
+									'width': 1.5, 'curve-style': 'bezier',
+									'target-arrow-shape': 'triangle',
+									'line-color': '#888', 'target-arrow-color': '#888'
+								}},
+								{ selector: 'edge[type = "required"]',     style: { 'line-color': '#3d6594', 'target-arrow-color': '#3d6594' }},
+								{ selector: 'edge[type = "optional"]',     style: { 'line-color': '#4a7a3e', 'target-arrow-color': '#4a7a3e', 'line-style': 'dashed' }},
+								{ selector: 'edge[type = "incompatible"]', style: { 'line-color': '#c45e5e', 'target-arrow-color': '#c45e5e', 'width': 2 }},
+								{ selector: 'edge[type = "tested_with"]',  style: { 'line-color': '#999',    'target-arrow-color': '#999',    'line-style': 'dotted' }},
+							],
+							layout: { name: 'breadthfirst', directed: true, padding: 20, spacingFactor: 1.4, roots: '[?focus]' },
+							wheelSensitivity: 0.2
+						});
+
+						cy.on('tap', 'node', function(evt) {
+							var n = evt.target.data();
+							if (n.isLocal && n.urlAlias) {
+								window.location.href = '/show/mod/' + n.modId;
+							}
+						});
+					})
+					.fail(function() { setStatus('dep-graph-error', 'Failed to load dependency graph.'); });
+			}
+
+			function initIfNeeded() {
+				if (inited || !graphTrigger.checked) return;
+				inited = true;
+				ensureLoaded(render);
+			}
+
+			graphTrigger.addEventListener('change', initIfNeeded);
+			if (graphTrigger.checked) initIfNeeded();
+
+			document.getElementById('dep-graph-fit').addEventListener('click', function() { if (cy) cy.fit(); });
+			document.getElementById('dep-graph-png').addEventListener('click', function() {
+				if (!cy) return;
+				var png = cy.png({ scale: 2, bg: '#fff8e8' });
+				var a = document.createElement('a');
+				a.href = png;
+				a.download = 'dependency-graph-' + canvas.dataset.modid + '.png';
+				a.click();
+			});
+		})();
 	</script>
 	<script nonce="{$cspNonce}" type="text/javascript" src="/web/js/jquery.fancybox.min.js" async></script>
 	<link nonce="{$cspNonce}" href="https://cdnjs.cloudflare.com/ajax/libs/fotorama/4.6.4/fotorama.css" rel="stylesheet">
