@@ -402,6 +402,33 @@ switch($urlparts[0]) {
 			$edges = array_values(array_intersect_key($edges, $reachableEdges));
 		}
 
+		// Cycle detection on required edges only (install-order graph). DFS marks any back edge
+		// (target is currently in the recursion stack) - those are the edges that close a cycle and
+		// the client highlights them so authors can spot circular deps visually.
+		$reqAdj = [];
+		foreach ($edges as $idx => $edge) {
+			if ($edge['type'] !== REL_REQUIRED) continue;
+			$reqAdj[$edge['from']][] = ['target' => $edge['to'], 'idx' => $idx];
+		}
+		$dfsState = []; // identifier => 0=unvisited, 1=in stack, 2=done
+		$cycleEdgeIdx = [];
+		$dfs = function(string $node) use (&$dfs, &$dfsState, &$cycleEdgeIdx, $reqAdj) {
+			$dfsState[$node] = 1;
+			foreach ($reqAdj[$node] ?? [] as $out) {
+				$s = $dfsState[$out['target']] ?? 0;
+				if ($s === 1)      $cycleEdgeIdx[$out['idx']] = true;        // back edge
+				else if ($s === 0) $dfs($out['target']);
+			}
+			$dfsState[$node] = 2;
+		};
+		foreach (array_keys($reqAdj) as $startNode) {
+			if (($dfsState[$startNode] ?? 0) === 0) $dfs($startNode);
+		}
+		foreach ($edges as $idx => &$edge) {
+			if (isset($cycleEdgeIdx[$idx])) $edge['inCycle'] = true;
+		}
+		unset($edge);
+
 		good([
 			'nodes' => array_values($nodes),
 			'edges' => $edges,

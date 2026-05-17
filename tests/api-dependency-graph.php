@@ -92,4 +92,116 @@ final class ApiDependencyGraphTest extends TestCase
 			$this->assertEquals('required', $edge['type'], 'types filter must restrict edges');
 		}
 	}
+
+	public function testCycleHighlightFlagsBackEdges(): void
+	{
+		global $con;
+		$relA = (int)$con->getOne("SELECT releaseId FROM modReleases WHERE identifier = 'rel-test-A'");
+		$relB = (int)$con->getOne("SELECT releaseId FROM modReleases WHERE identifier = 'rel-test-B'");
+		if (!$relA || !$relB) $this->markTestSkipped('rel-test fixture not present');
+
+		// Wipe and create a tight A -> B -> A cycle.
+		$con->execute("DELETE FROM modRelations WHERE releaseId IN (?,?)", [$relA, $relB]);
+		$userId = (int)$con->getOne("SELECT userId FROM users LIMIT 1");
+		$con->execute("INSERT INTO modRelations (releaseId, targetIdentifier, relationType, origin, createdByUserId) VALUES (?,?,?,?,?)",
+			[$relA, 'rel-test-B', 'required', 'manual', $userId]);
+		$con->execute("INSERT INTO modRelations (releaseId, targetIdentifier, relationType, origin, createdByUserId) VALUES (?,?,?,?,?)",
+			[$relB, 'rel-test-A', 'required', 'manual', $userId]);
+
+		$r = callDependencyGraph();
+		$this->assertEquals(200, $r['code']);
+		$hasCycleEdge = false;
+		foreach ($r['body']['edges'] as $edge) {
+			if (!empty($edge['inCycle'])) { $hasCycleEdge = true; break; }
+		}
+		$this->assertTrue($hasCycleEdge, 'API must flag at least one edge with inCycle when relations form a cycle');
+
+		$con->execute("DELETE FROM modRelations WHERE releaseId IN (?,?)", [$relA, $relB]);
+	}
+
+	public function testGlobalGraphHandlesLargeDataset(): void
+	{
+		// Stress test: 60 mods, each requiring the next two and one optional, forming a wide DAG
+		// with several cycles introduced on purpose. Confirms the endpoint completes in reasonable
+		// time and returns a coherent graph.
+		global $con;
+		$userId = (int)$con->getOne("SELECT userId FROM users LIMIT 1");
+
+		$createdMods = [];
+		$createdAssets = [];
+		$createdReleases = [];
+		try {
+			$N = 60;
+			for ($i = 0; $i < $N; $i++) {
+				$id = 'stress-mod-'.$i;
+				$existing = $con->getOne("SELECT modId FROM mods WHERE urlAlias = ?", [$id]);
+				if ($existing) {
+					$createdMods[] = (int)$existing;
+					$createdReleases[] = (int)$con->getOne("SELECT releaseId FROM modReleases WHERE modId = ? LIMIT 1", [$existing]);
+					continue;
+				}
+				$con->execute("INSERT INTO assets (createdByUserId, statusId, assetTypeId, name, text) VALUES (?,?,?,?,?)",
+					[$userId, STATUS_RELEASED, ASSETTYPE_MOD, 'Stress Mod '.$i, '']);
+				$assetId = (int)$con->Insert_ID();
+				$createdAssets[] = $assetId;
+				$con->execute("INSERT INTO mods (assetId, urlAlias, summary, descriptionSearchable, side, lastReleased) VALUES (?,?,?,?,?,NOW())",
+					[$assetId, $id, $id, $id, 'both']);
+				$modId = (int)$con->Insert_ID();
+				$createdMods[] = $modId;
+				$con->execute("INSERT INTO assets (createdByUserId, statusId, assetTypeId, name) VALUES (?,?,?,?)",
+					[$userId, STATUS_RELEASED, ASSETTYPE_MOD, $id.'-r1']);
+				$relAssetId = (int)$con->Insert_ID();
+				$createdAssets[] = $relAssetId;
+				$con->execute("INSERT INTO modReleases (assetId, modId, identifier, version) VALUES (?,?,?,?)",
+					[$relAssetId, $modId, $id, compileSemanticVersion('1.0.0')]);
+				$relId = (int)$con->Insert_ID();
+				$createdReleases[] = $relId;
+				$con->execute("INSERT INTO files (assetId, assetTypeId, userId, name, cdnPath, `order`) VALUES (?,?,?,?,?,?)",
+					[$relAssetId, ASSETTYPE_MOD, $userId, $id.'.zip', '/cdn/'.$id.'.zip', 0]);
+			}
+			// Wire up relations: each mod requires the next two and optionally tests-with the one after that.
+			// Introduce 3 explicit cycles to exercise the detector.
+			for ($i = 0; $i < $N; $i++) {
+				$src = $createdReleases[$i];
+				if ($i + 1 < $N) {
+					$con->execute("INSERT IGNORE INTO modRelations (releaseId, targetIdentifier, relationType, origin, createdByUserId) VALUES (?,?,?,?,?)",
+						[$src, 'stress-mod-'.($i + 1), 'required', 'manual', $userId]);
+				}
+				if ($i + 2 < $N) {
+					$con->execute("INSERT IGNORE INTO modRelations (releaseId, targetIdentifier, relationType, origin, createdByUserId) VALUES (?,?,?,?,?)",
+						[$src, 'stress-mod-'.($i + 2), 'optional', 'manual', $userId]);
+				}
+			}
+			// Cycles: 0 -> 10 -> 0, 20 -> 30 -> 20, 40 -> 55 -> 40
+			foreach ([[0, 10], [20, 30], [40, 55]] as $pair) {
+				$con->execute("INSERT IGNORE INTO modRelations (releaseId, targetIdentifier, relationType, origin, createdByUserId) VALUES (?,?,?,?,?)",
+					[$createdReleases[$pair[0]], 'stress-mod-'.$pair[1], 'required', 'manual', $userId]);
+				$con->execute("INSERT IGNORE INTO modRelations (releaseId, targetIdentifier, relationType, origin, createdByUserId) VALUES (?,?,?,?,?)",
+					[$createdReleases[$pair[1]], 'stress-mod-'.$pair[0], 'required', 'manual', $userId]);
+			}
+
+			$start = microtime(true);
+			$r = callDependencyGraph();
+			$elapsed = microtime(true) - $start;
+
+			$this->assertEquals(200, $r['code']);
+			$this->assertGreaterThanOrEqual($N, count($r['body']['nodes']), 'all stress mods must be in the graph');
+			$cycleEdges = array_filter($r['body']['edges'], fn($e) => !empty($e['inCycle']));
+			$this->assertGreaterThanOrEqual(3, count($cycleEdges), 'at least the 3 explicit cycles must be flagged');
+			$this->assertLessThan(2.0, $elapsed, "global graph endpoint should respond in <2s for $N mods (took {$elapsed}s)");
+		} finally {
+			// Cleanup in dependency order: relations -> files -> releases -> mods -> assets.
+			$relIn = implode(',', array_map('intval', $createdReleases));
+			if ($relIn) $con->execute("DELETE FROM modRelations WHERE releaseId IN ($relIn)");
+			$con->execute("DELETE FROM modRelations WHERE targetIdentifier LIKE 'stress-mod-%'");
+			$assetIn = implode(',', array_map('intval', $createdAssets));
+			if ($assetIn) {
+				$con->execute("DELETE FROM files WHERE assetId IN ($assetIn)");
+				$con->execute("DELETE FROM modReleases WHERE assetId IN ($assetIn)");
+			}
+			$modIn = implode(',', array_map('intval', $createdMods));
+			if ($modIn) $con->execute("DELETE FROM mods WHERE modId IN ($modIn)");
+			if ($assetIn) $con->execute("DELETE FROM assets WHERE assetId IN ($assetIn)");
+		}
+	}
 }

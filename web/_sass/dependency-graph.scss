@@ -7,6 +7,10 @@
 		margin-bottom: .5em;
 		padding: .5em 0;
 
+		.spacer {
+			flex: 1;
+		}
+
 		.legend {
 			display: flex;
 			gap: .75em;
@@ -65,5 +69,95 @@
 		.dep-graph-error {
 			color: var(--color-input-r);
 		}
+	}
+}
+
+.dep-graph-fullpage {
+	padding: 1em;
+
+	>h2 {
+		margin: 0 0 .5em 0;
+	}
+
+	.dep-graph-intro {
+		margin-bottom: 1em;
+		color: var(--color-text-weak);
+	}
+
+	.dep-graph-layout {
+		display: flex;
+		gap: 1em;
+		align-items: flex-start;
+	}
+
+	.dep-graph-sidebar {
+		flex: 0 0 220px;
+		background: var(--color-content-bg);
+		border: 1px solid var(--color-border);
+		padding: .75em;
+
+		>strong {
+			display: block;
+			margin-bottom: .5em;
+		}
+
+		.filter-group {
+			margin-top: .75em;
+
+			>label {
+				display: block;
+				font-size: .9em;
+				margin-bottom: .25em;
+			}
+
+			.hint {
+				color: var(--color-text-weak);
+				font-size: .8em;
+			}
+
+			.option-row {
+				display: block;
+			}
+		}
+
+		#dep-graph-search {
+			width: 100%;
+		}
+
+		#dep-graph-search-results {
+			margin-top: .25em;
+			max-height: 200px;
+			overflow-y: auto;
+
+			a {
+				display: block;
+				padding: .25em;
+				text-decoration: none;
+				color: var(--color-link);
+
+				&:hover {
+					background: hsl(var(--c-input-btn) 95%);
+				}
+			}
+		}
+
+		#dep-graph-reset {
+			width: 100%;
+			padding: .4em;
+			border: 1px solid var(--color-border);
+			background: var(--color-input-btn);
+			cursor: pointer;
+
+			&:hover { background: hsl(var(--c-input-btn) 90%); }
+		}
+	}
+
+	.dep-graph-main {
+		flex: 1;
+		min-width: 0;
+	}
+
+	#dep-graph-canvas {
+		height: 75vh;
 	}
 }

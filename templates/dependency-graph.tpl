@@ -1,36 +1,37 @@
 {include file="header" hclass="innercontent dependency-graph-page"}
 
-<div class="dep-graph-fullpage" style="padding: 1em;">
-	<h2 style="margin: 0 0 .5em 0;">Mod dependency graph</h2>
-	<p style="margin-bottom: 1em; color: var(--color-text-weak);">
+<div class="dep-graph-fullpage">
+	<h2>Mod dependency graph</h2>
+	<p class="dep-graph-intro">
 		Showing relations from the latest non-retracted release of every mod
 		({$nodeCount} mods / {$edgeCount} edges in the database).
 	</p>
 
-	<div class="dep-graph-tab" style="display: flex; gap: 1em; align-items: flex-start;">
-		<aside style="flex: 0 0 220px; background: var(--color-content-bg); border: 1px solid var(--color-border); padding: .75em;">
+	<div class="dep-graph-tab dep-graph-layout">
+		<aside class="dep-graph-sidebar">
 			<strong>Filters</strong>
-			<div style="margin-top: .5em;">
-				<label style="display: block; font-size: .9em; margin-bottom: .25em;">Focus on a mod:</label>
-				<input type="text" id="dep-graph-search" placeholder="modid or url alias..." style="width: 100%;">
-				<small style="color: var(--color-text-weak);">Type and pick from the list to filter the subgraph.</small>
-				<div id="dep-graph-search-results" style="margin-top: .25em; max-height: 200px; overflow-y: auto;"></div>
+
+			<div class="filter-group">
+				<label>Focus on a mod:</label>
+				<input type="text" id="dep-graph-search" placeholder="modid or url alias...">
+				<small class="hint">Type and pick from the list to filter the subgraph.</small>
+				<div id="dep-graph-search-results"></div>
 			</div>
 
-			<div style="margin-top: 1em;">
-				<label style="display: block; font-size: .9em; margin-bottom: .25em;">Relation types:</label>
-				<label style="display:block;"><input type="checkbox" data-rel-type="required"     checked> Required</label>
-				<label style="display:block;"><input type="checkbox" data-rel-type="optional"     checked> Optional</label>
-				<label style="display:block;"><input type="checkbox" data-rel-type="incompatible" checked> Incompatible</label>
-				<label style="display:block;"><input type="checkbox" data-rel-type="tested_with"  checked> Tested with</label>
+			<div class="filter-group">
+				<label>Relation types:</label>
+				<label class="option-row"><input type="checkbox" data-rel-type="required"     checked> Required</label>
+				<label class="option-row"><input type="checkbox" data-rel-type="optional"     checked> Optional</label>
+				<label class="option-row"><input type="checkbox" data-rel-type="incompatible" checked> Incompatible</label>
+				<label class="option-row"><input type="checkbox" data-rel-type="tested_with"  checked> Tested with</label>
 			</div>
 
-			<div style="margin-top: 1em;">
-				<button type="button" id="dep-graph-reset" style="width: 100%; padding: .4em;">Reset view</button>
+			<div class="filter-group">
+				<button type="button" id="dep-graph-reset">Reset view</button>
 			</div>
 		</aside>
 
-		<div style="flex: 1; min-width: 0;">
+		<div class="dep-graph-main">
 			<div class="dep-graph-toolbar">
 				<div class="legend">
 					<span class="required">required</span>
@@ -38,11 +39,11 @@
 					<span class="incompatible">incompatible</span>
 					<span class="tested_with">tested with</span>
 				</div>
-				<div style="flex:1"></div>
+				<div class="spacer"></div>
 				<button type="button" id="dep-graph-fit">Fit</button>
 				<button type="button" id="dep-graph-png">Export PNG</button>
 			</div>
-			<div id="dep-graph-canvas" style="height: 75vh;" data-csp-nonce="{$cspNonce}">
+			<div id="dep-graph-canvas" data-csp-nonce="{$cspNonce}">
 				<div class="dep-graph-loading">Loading dependency graph...</div>
 			</div>
 		</div>
@@ -122,6 +123,7 @@
 		{ selector: 'edge[type = "optional"]',     style: { 'line-color': '#4a7a3e', 'target-arrow-color': '#4a7a3e', 'line-style': 'dashed' }},
 		{ selector: 'edge[type = "incompatible"]', style: { 'line-color': '#c45e5e', 'target-arrow-color': '#c45e5e', 'width': 2 }},
 		{ selector: 'edge[type = "tested_with"]',  style: { 'line-color': '#999',    'target-arrow-color': '#999',    'line-style': 'dotted' }},
+		{ selector: 'edge[?inCycle]',              style: { 'line-color': '#c45e5e', 'target-arrow-color': '#c45e5e', 'width': 3, 'line-style': 'solid' }},
 	];
 
 	function render() {
