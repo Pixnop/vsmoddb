@@ -185,6 +185,38 @@ function wouldCreateCycleInGraph(string $sourceIdentifier, string $targetIdentif
 }
 
 /**
+ * Pure cycle finder: given a directed edge list, returns indices of edges that close a cycle
+ * (back edges in a DFS forest). Only edges of type REL_REQUIRED participate - that's the relation
+ * type that constrains install order.
+ *
+ * @param array<array{from:string,to:string,type:string}> $edges
+ * @return array<int> indices into $edges that are back edges
+ */
+function findCycleEdgeIndices(array $edges): array
+{
+	$adj = [];
+	foreach ($edges as $idx => $edge) {
+		if ($edge['type'] !== REL_REQUIRED) continue;
+		$adj[$edge['from']][] = ['target' => $edge['to'], 'idx' => $idx];
+	}
+	$state = [];          // identifier => 0=unvisited, 1=in stack, 2=done
+	$cycleEdgeIdx = [];
+	$dfs = function(string $node) use (&$dfs, &$state, &$cycleEdgeIdx, $adj) {
+		$state[$node] = 1;
+		foreach ($adj[$node] ?? [] as $out) {
+			$s = $state[$out['target']] ?? 0;
+			if      ($s === 1) $cycleEdgeIdx[$out['idx']] = true; // back edge
+			else if ($s === 0) $dfs($out['target']);
+		}
+		$state[$node] = 2;
+	};
+	foreach (array_keys($adj) as $startNode) {
+		if (($state[$startNode] ?? 0) === 0) $dfs($startNode);
+	}
+	return array_keys($cycleEdgeIdx);
+}
+
+/**
  * DB-backed wrapper: true if declaring (releaseId -required-> targetIdentifier) would create a cycle
  * in the latest-release-per-identifier required-relation graph. Used by the UI to warn at relation
  * declaration time. Returns false if the source release has no identifier (release without modinfo).

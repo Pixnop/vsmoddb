@@ -306,3 +306,56 @@ final class RelationsCycleGuardTest extends TestCase
         $this->assertTrue(wouldCreateCycleInGraph('A', 'A', REL_REQUIRED, []));
     }
 }
+
+final class RelationsFindCycleEdgeIndicesTest extends TestCase
+{
+    public function testNoCyclesReturnsEmpty(): void
+    {
+        $edges = [
+            ['from' => 'A', 'to' => 'B', 'type' => REL_REQUIRED],
+            ['from' => 'B', 'to' => 'C', 'type' => REL_REQUIRED],
+        ];
+        $this->assertEmpty(findCycleEdgeIndices($edges));
+    }
+
+    public function testDirectCycleFlagsTheBackEdge(): void
+    {
+        $edges = [
+            ['from' => 'A', 'to' => 'B', 'type' => REL_REQUIRED],
+            ['from' => 'B', 'to' => 'A', 'type' => REL_REQUIRED], // back edge
+        ];
+        $this->assertEquals([1], findCycleEdgeIndices($edges));
+    }
+
+    public function testTransitiveCycleFlagsOnlyClosingEdge(): void
+    {
+        $edges = [
+            ['from' => 'A', 'to' => 'B', 'type' => REL_REQUIRED],
+            ['from' => 'B', 'to' => 'C', 'type' => REL_REQUIRED],
+            ['from' => 'C', 'to' => 'A', 'type' => REL_REQUIRED], // closes the cycle
+        ];
+        $this->assertEquals([2], findCycleEdgeIndices($edges));
+    }
+
+    public function testNonRequiredEdgesNeverFlagged(): void
+    {
+        $edges = [
+            ['from' => 'A', 'to' => 'B', 'type' => REL_OPTIONAL],
+            ['from' => 'B', 'to' => 'A', 'type' => REL_OPTIONAL],
+        ];
+        $this->assertEmpty(findCycleEdgeIndices($edges));
+    }
+
+    public function testMultipleIndependentCycles(): void
+    {
+        $edges = [
+            ['from' => 'A', 'to' => 'B', 'type' => REL_REQUIRED],
+            ['from' => 'B', 'to' => 'A', 'type' => REL_REQUIRED],
+            ['from' => 'X', 'to' => 'Y', 'type' => REL_REQUIRED],
+            ['from' => 'Y', 'to' => 'X', 'type' => REL_REQUIRED],
+        ];
+        $result = findCycleEdgeIndices($edges);
+        sort($result);
+        $this->assertEquals([1, 3], $result);
+    }
+}

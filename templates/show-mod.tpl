@@ -336,6 +336,7 @@
 {include file="comments"}
 
 {capture name="footerjs"}
+	<script nonce="{$cspNonce}" type="text/javascript" src="/web/js/dep-graph.js"></script>
 	<script nonce="{$cspNonce}" type="text/javascript">
 		modId = {$asset['modId']};
 
@@ -376,142 +377,18 @@
 			var canvas = document.getElementById('dep-graph-canvas');
 			if (!graphTrigger || !canvas) return;
 
-			var inited = false;
-			var cy = null;
+			var graph = initDepGraph(canvas, {
+				modId: parseInt(canvas.dataset.modid, 10),
+				fetchUrl: '/api/v2/mods/dependency-graph?modid=' + encodeURIComponent(canvas.dataset.modid)
+			});
 
-			function setStatus(klass, text) {
-				while (canvas.firstChild) canvas.removeChild(canvas.firstChild);
-				var div = document.createElement('div');
-				div.className = klass;
-				div.textContent = text;
-				canvas.appendChild(div);
-			}
+			function maybeInit() { if (graphTrigger.checked) graph.init(); }
+			graphTrigger.addEventListener('change', maybeInit);
+			maybeInit();
 
-			function loadScript(src, cb) {
-				var s = document.createElement('script');
-				s.src = src;
-				s.nonce = canvas.dataset.cspNonce;
-				s.onload = cb;
-				s.onerror = function() { setStatus('dep-graph-error', 'Failed to load ' + src); };
-				document.head.appendChild(s);
-			}
-
-			function ensureLoaded(cb) {
-				if (typeof cytoscape !== 'undefined' && cytoscape.layouts && cytoscape.layouts.cola) return cb();
-				var chain = function(scripts, done) {
-					if (!scripts.length) return done();
-					loadScript(scripts.shift(), function() { chain(scripts, done); });
-				};
-				chain(['/web/js/cytoscape.min.js', '/web/js/cola.min.js', '/web/js/cytoscape-cola.js'], function() {
-					if (typeof cytoscape !== 'undefined' && typeof cytoscapeCola !== 'undefined') {
-						cytoscape.use(cytoscapeCola);
-					}
-					cb();
-				});
-			}
-
-			function render() {
-				var modId = canvas.dataset.modid;
-				$.get('/api/v2/mods/dependency-graph?modid=' + encodeURIComponent(modId))
-					.done(function(data) {
-						if (!data.nodes || !data.nodes.length) {
-							setStatus('dep-graph-empty', 'No relations declared yet for this mod.');
-							return;
-						}
-						while (canvas.firstChild) canvas.removeChild(canvas.firstChild);
-						var elements = [];
-						data.nodes.forEach(function(n) {
-							elements.push({ data: {
-								id: n.id, label: n.label, isLocal: !!n.isLocal,
-								modId: n.modId || 0, urlAlias: n.urlAlias || '',
-								version: n.latestVersion || '', focus: (n.modId == modId)
-							}});
-						});
-						// Merge opposite-direction edges of the same type into one bidirectional edge.
-						var seen = Object.create(null);
-						data.edges.forEach(function(e) {
-							var fwdKey = e.from + '|' + e.to + '|' + e.type;
-							var revKey = e.to + '|' + e.from + '|' + e.type;
-							if (seen[revKey]) {
-								seen[revKey].bidirectional = true;
-								seen[revKey].inCycle = seen[revKey].inCycle || !!e.inCycle;
-								return;
-							}
-							var data2 = { id: 'e-' + fwdKey, source: e.from, target: e.to, type: e.type };
-							if (e.inCycle) data2.inCycle = true;
-							seen[fwdKey] = data2;
-							elements.push({ data: data2 });
-						});
-
-						cy = cytoscape({
-							container: canvas,
-							elements: elements,
-							style: [
-								{ selector: 'node', style: {
-									'background-color': '#aaa', 'label': 'data(label)',
-									'color': '#333', 'font-size': '13px', 'text-valign': 'bottom',
-									'text-margin-y': 8, 'width': 38, 'height': 38,
-									'border-width': 1, 'border-color': '#666',
-									'text-wrap': 'wrap', 'text-max-width': '140px',
-									'text-background-color': '#fff8e8',
-									'text-background-opacity': 0.9,
-									'text-background-padding': '3px',
-									'text-background-shape': 'roundrectangle'
-								}},
-								{ selector: 'node[?isLocal]', style: { 'background-color': '#3d6594', 'border-color': '#234166' }},
-								{ selector: 'node[?focus]', style: { 'background-color': '#c4925e', 'border-color': '#8a5e2e', 'border-width': 2, 'width': 50, 'height': 50 }},
-								{ selector: 'node[!isLocal]', style: { 'font-style': 'italic', 'background-color': '#ddd', 'border-color': '#aaa' }},
-								{ selector: 'edge', style: {
-									'width': 1.5, 'curve-style': 'bezier',
-									'target-arrow-shape': 'triangle',
-									'line-color': '#888', 'target-arrow-color': '#888'
-								}},
-								{ selector: 'edge[type = "required"]',     style: { 'line-color': '#3d6594', 'target-arrow-color': '#3d6594' }},
-								{ selector: 'edge[type = "optional"]',     style: { 'line-color': '#4a7a3e', 'target-arrow-color': '#4a7a3e', 'line-style': 'dashed' }},
-								{ selector: 'edge[type = "incompatible"]', style: { 'line-color': '#c45e5e', 'target-arrow-color': '#c45e5e', 'width': 2 }},
-								{ selector: 'edge[type = "tested_with"]',  style: { 'line-color': '#999',    'target-arrow-color': '#999',    'line-style': 'dotted' }},
-								{ selector: 'edge[?inCycle]',              style: { 'line-color': '#c45e5e', 'target-arrow-color': '#c45e5e', 'width': 3, 'line-style': 'solid' }},
-								{ selector: 'edge[?bidirectional]', style: { 'source-arrow-shape': 'triangle' }},
-								{ selector: 'edge[type = "required"][?bidirectional]',     style: { 'source-arrow-color': '#3d6594' }},
-								{ selector: 'edge[type = "optional"][?bidirectional]',     style: { 'source-arrow-color': '#4a7a3e' }},
-								{ selector: 'edge[type = "incompatible"][?bidirectional]', style: { 'source-arrow-color': '#c45e5e' }},
-								{ selector: 'edge[type = "tested_with"][?bidirectional]',  style: { 'source-arrow-color': '#999'    }},
-								{ selector: 'edge[?inCycle][?bidirectional]',              style: { 'source-arrow-color': '#c45e5e' }},
-							],
-							layout: { name: 'cola', animate: true, refresh: 1, maxSimulationTime: 4000, ungrabifyWhileSimulating: false, fit: false, padding: 30, boundingBox: { x1: 0, y1: 0, w: Math.min(900, 250 + elements.length * 35), h: Math.min(900, 250 + elements.length * 35) }, nodeSpacing: 30, edgeLength: 120, avoidOverlap: true },
-							minZoom: 0.2,
-							maxZoom: 3,
-							wheelSensitivity: 0.2
-						});
-						cy.one('layoutstop', function() { cy.zoom(1); cy.center(); });
-
-						cy.on('tap', 'node', function(evt) {
-							var n = evt.target.data();
-							if (n.isLocal && n.urlAlias) {
-								window.location.href = '/show/mod/' + n.modId;
-							}
-						});
-					})
-					.fail(function() { setStatus('dep-graph-error', 'Failed to load dependency graph.'); });
-			}
-
-			function initIfNeeded() {
-				if (inited || !graphTrigger.checked) return;
-				inited = true;
-				ensureLoaded(render);
-			}
-
-			graphTrigger.addEventListener('change', initIfNeeded);
-			if (graphTrigger.checked) initIfNeeded();
-
-			document.getElementById('dep-graph-fit').addEventListener('click', function() { if (cy) cy.fit(); });
+			document.getElementById('dep-graph-fit').addEventListener('click', graph.fit);
 			document.getElementById('dep-graph-png').addEventListener('click', function() {
-				if (!cy) return;
-				var png = cy.png({ scale: 2, bg: '#fff8e8' });
-				var a = document.createElement('a');
-				a.href = png;
-				a.download = 'dependency-graph-' + canvas.dataset.modid + '.png';
-				a.click();
+				graph.exportPng('dependency-graph-' + canvas.dataset.modid + '.png');
 			});
 		})();
 	</script>
