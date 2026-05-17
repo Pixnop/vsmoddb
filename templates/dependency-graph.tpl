@@ -39,6 +39,7 @@
 					<span class="incompatible">incompatible</span>
 					<span class="tested_with">tested with</span>
 				</div>
+				<small class="hint">Tip: <kbd>Shift</kbd>+drag a label to nudge it.</small>
 				<div class="spacer"></div>
 				<button type="button" id="dep-graph-fit">Fit</button>
 				<button type="button" id="dep-graph-png">Export PNG</button>

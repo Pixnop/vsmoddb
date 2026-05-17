@@ -300,7 +300,8 @@
 					<span class="incompatible">incompatible</span>
 					<span class="tested_with">tested with</span>
 				</div>
-				<div style="flex:1"></div>
+				<small class="hint"><kbd>Shift</kbd>+drag a label to nudge it.</small>
+				<div class="spacer"></div>
 				<button type="button" id="dep-graph-fit" title="Fit graph in view">Fit</button>
 				<button type="button" id="dep-graph-png" title="Download a PNG of the current view">Export PNG</button>
 			</div>

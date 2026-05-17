@@ -146,6 +146,38 @@
 				wheelSensitivity: 0.2
 			});
 			cy.on('tap', 'node', opts.onNodeTap || defaultNodeTap);
+			attachLabelDrag(cy);
+		}
+
+		// Shift+drag on a node moves its label only (text-margin-x/y), not the node itself.
+		// Lets authors nudge labels out of edge crossings to read busy graphs more easily.
+		function attachLabelDrag(cyInstance) {
+			var drag = null;
+			cyInstance.on('tapstart', 'node', function(evt) {
+				if (!evt.originalEvent || !evt.originalEvent.shiftKey) return;
+				var node = evt.target;
+				drag = {
+					node: node,
+					startX: evt.position.x,
+					startY: evt.position.y,
+					baseX: parseFloat(node.style('text-margin-x')) || 0,
+					baseY: parseFloat(node.style('text-margin-y')) || 0
+				};
+				node.ungrabify(); // suppress the normal node drag
+				evt.preventDefault();
+			});
+			cyInstance.on('tapdrag', function(evt) {
+				if (!drag) return;
+				drag.node.style({
+					'text-margin-x': drag.baseX + (evt.position.x - drag.startX),
+					'text-margin-y': drag.baseY + (evt.position.y - drag.startY)
+				});
+			});
+			cyInstance.on('tapend', function() {
+				if (!drag) return;
+				drag.node.grabify();
+				drag = null;
+			});
 		}
 
 		function fetchAndRender(url) {
