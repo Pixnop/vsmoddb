@@ -145,9 +145,6 @@
 				minZoom: 0.2, maxZoom: 3,
 				wheelSensitivity: 0.2
 			});
-			cy.one('layoutstop', function() {
-				if (cy.zoom() > 1.5) { cy.zoom(1.5); cy.center(); }
-			});
 			cy.on('tap', 'node', opts.onNodeTap || defaultNodeTap);
 		}
 
