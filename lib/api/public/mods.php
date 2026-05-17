@@ -278,6 +278,135 @@ switch($urlparts[0]) {
 		}
 		good(['data' => $result] + $resolvePayload);
 
+	case 'dependency-graph':
+		validateMethod('GET');
+
+		// Optional filter: comma-separated list of relation types to include.
+		$allowedTypes = [REL_REQUIRED, REL_OPTIONAL, REL_INCOMPATIBLE, REL_TESTED_WITH];
+		$typeFilter = $allowedTypes;
+		if (!empty($_GET['types'])) {
+			$requested = array_map('trim', explode(',', $_GET['types']));
+			$typeFilter = array_values(array_intersect($allowedTypes, $requested));
+			if (!$typeFilter) fail(HTTP_BAD_REQUEST, ['reason' => 'No valid relation types in `types` filter.']);
+		}
+		$typePlaceholders = substr(str_repeat('?,', count($typeFilter)), 0, -1);
+
+		// Resolve "latest non-retracted release per identifier" once - this is the source of truth for
+		// which release's relations represent a mod in the graph (matches what show-mod's infobox uses).
+		$latestRows = $con->getAll(<<<SQL
+			SELECT mr.releaseId, mr.identifier, mr.version, m.modId, m.urlAlias, a.name AS modName, m.summary
+			FROM modReleases mr
+			JOIN (
+				SELECT identifier, MAX(releaseId) AS maxRel
+				FROM modReleases
+				WHERE identifier IS NOT NULL
+				GROUP BY identifier
+			) latest ON latest.maxRel = mr.releaseId
+			JOIN mods m   ON m.modId = mr.modId
+			JOIN assets a ON a.assetId = m.assetId
+			LEFT JOIN modReleaseRetractions rr ON rr.releaseId = mr.releaseId
+			WHERE rr.reason IS NULL
+		SQL);
+		// Index by identifier (graph node id).
+		$latestByIdentifier = [];
+		$releaseIdsInScope  = [];
+		foreach ($latestRows as $row) {
+			$latestByIdentifier[$row['identifier']] = $row;
+			$releaseIdsInScope[] = (int)$row['releaseId'];
+		}
+
+		// Pull all relevant relations for those latest releases.
+		$edges = [];
+		if ($releaseIdsInScope && $typeFilter) {
+			$releasePlaceholders = substr(str_repeat('?,', count($releaseIdsInScope)), 0, -1);
+			$relParams = array_merge($releaseIdsInScope, $typeFilter);
+			$relRows = $con->getAll(
+				"SELECT releaseId, targetIdentifier, relationType, minVersion, maxVersion
+				 FROM modRelations
+				 WHERE releaseId IN ($releasePlaceholders) AND relationType IN ($typePlaceholders)",
+				$relParams
+			);
+			$releaseIdToIdentifier = array_column($latestRows, 'identifier', 'releaseId');
+			foreach ($relRows as $rel) {
+				$srcId = $releaseIdToIdentifier[$rel['releaseId']] ?? null;
+				if ($srcId === null) continue;
+				$edge = [
+					'from' => $srcId,
+					'to'   => $rel['targetIdentifier'],
+					'type' => $rel['relationType'],
+				];
+				if ($rel['minVersion'] !== null) $edge['minVersion'] = formatSemanticVersion((int)$rel['minVersion']);
+				if ($rel['maxVersion'] !== null) $edge['maxVersion'] = formatSemanticVersion((int)$rel['maxVersion']);
+				$edges[] = $edge;
+			}
+		}
+
+		// Build node list. Include phantom nodes for edge targets that aren't hosted locally.
+		$nodes = [];
+		foreach ($latestByIdentifier as $identifier => $row) {
+			$nodes[$identifier] = [
+				'id'            => $identifier,
+				'modId'         => (int)$row['modId'],
+				'label'         => $row['modName'],
+				'urlAlias'      => $row['urlAlias'],
+				'summary'       => $row['summary'],
+				'latestVersion' => formatSemanticVersion((int)$row['version']),
+				'isLocal'       => true,
+			];
+		}
+		foreach ($edges as $edge) {
+			if (!isset($nodes[$edge['to']])) {
+				$nodes[$edge['to']] = [
+					'id'      => $edge['to'],
+					'label'   => $edge['to'],
+					'isLocal' => false,
+				];
+			}
+		}
+
+		// Optional focus on a single mod: BFS in both directions over the assembled graph.
+		if (!empty($_GET['modid'])) {
+			$focusModId = filter_var($_GET['modid'], FILTER_VALIDATE_INT);
+			if (!$focusModId) fail(HTTP_BAD_REQUEST, ['reason' => 'Invalid modid.']);
+
+			$focusIdentifiers = array_keys(array_filter($latestByIdentifier, fn($r) => (int)$r['modId'] === $focusModId));
+			if (!$focusIdentifiers) fail(HTTP_NOT_FOUND, ['reason' => 'Mod has no released identifier.']);
+
+			// Build outgoing / incoming adjacency maps once.
+			$outAdj = [];
+			$inAdj  = [];
+			foreach ($edges as $i => $edge) {
+				$outAdj[$edge['from']][] = $i;
+				$inAdj [$edge['to']]  [] = $i;
+			}
+
+			$reachableNodes = [];
+			$reachableEdges = [];
+			$queue = array_map(fn($id) => [$id, 0], $focusIdentifiers);
+			$seen  = array_fill_keys($focusIdentifiers, true);
+			while ($queue) {
+				[$cur, $depth] = array_shift($queue);
+				$reachableNodes[$cur] = true;
+				foreach (($outAdj[$cur] ?? []) as $eidx) {
+					$reachableEdges[$eidx] = true;
+					$next = $edges[$eidx]['to'];
+					if (empty($seen[$next])) { $seen[$next] = true; $queue[] = [$next, $depth + 1]; }
+				}
+				foreach (($inAdj[$cur] ?? []) as $eidx) {
+					$reachableEdges[$eidx] = true;
+					$prev = $edges[$eidx]['from'];
+					if (empty($seen[$prev])) { $seen[$prev] = true; $queue[] = [$prev, $depth + 1]; }
+				}
+			}
+			$nodes = array_intersect_key($nodes, $reachableNodes);
+			$edges = array_values(array_intersect_key($edges, $reachableEdges));
+		}
+
+		good([
+			'nodes' => array_values($nodes),
+			'edges' => $edges,
+		]);
+
 	default:
 		// /mods/{modId}
 		$modId = filter_var($urlparts[0], FILTER_VALIDATE_INT);
