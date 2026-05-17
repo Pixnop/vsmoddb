@@ -70,14 +70,27 @@
 		canvas.appendChild(div);
 	}
 
-	function loadCytoscape(cb) {
-		if (typeof cytoscape !== 'undefined') return cb();
+	function loadScript(src, cb) {
 		var s = document.createElement('script');
-		s.src = '/web/js/cytoscape.min.js';
+		s.src = src;
 		s.nonce = canvas.dataset.cspNonce;
 		s.onload = cb;
-		s.onerror = function() { setStatus('dep-graph-error', 'Failed to load Cytoscape library.'); };
+		s.onerror = function() { setStatus('dep-graph-error', 'Failed to load ' + src); };
 		document.head.appendChild(s);
+	}
+
+	function loadCytoscape(cb) {
+		if (typeof cytoscape !== 'undefined' && cytoscape.layouts && cytoscape.layouts.cola) return cb();
+		var chain = function(scripts, done) {
+			if (!scripts.length) return done();
+			loadScript(scripts.shift(), function() { chain(scripts, done); });
+		};
+		chain(['/web/js/cytoscape.min.js', '/web/js/cola.min.js', '/web/js/cytoscape-cola.js'], function() {
+			if (typeof cytoscape !== 'undefined' && typeof cytoscapeCola !== 'undefined') {
+				cytoscape.use(cytoscapeCola);
+			}
+			cb();
+		});
 	}
 
 	function activeTypes() {
@@ -102,8 +115,23 @@
 				version: n.latestVersion || '', focus: (focusModId && n.modId == focusModId)
 			}});
 		});
-		data.edges.forEach(function(e, i) {
-			elements.push({ data: { id: 'e'+i, source: e.from, target: e.to, type: e.type } });
+
+		// Detect pairs of opposite-direction edges with the same type (A -required-> B AND
+		// B -required-> A). Render those as one edge with arrows on both ends so the graph
+		// stays readable and the cycle is obvious without an "X" of two crossing arrows.
+		var seen = Object.create(null);
+		data.edges.forEach(function(e) {
+			var fwdKey = e.from + '|' + e.to + '|' + e.type;
+			var revKey = e.to + '|' + e.from + '|' + e.type;
+			if (seen[revKey]) {
+				seen[revKey].bidirectional = true;
+				seen[revKey].inCycle = seen[revKey].inCycle || !!e.inCycle;
+				return;
+			}
+			var data2 = { id: 'e-' + fwdKey, source: e.from, target: e.to, type: e.type };
+			if (e.inCycle) data2.inCycle = true;
+			seen[fwdKey] = data2;
+			elements.push({ data: data2 });
 		});
 		return elements;
 	}
@@ -111,12 +139,17 @@
 	var commonStyle = [
 		{ selector: 'node', style: {
 			'background-color': '#aaa', 'label': 'data(label)',
-			'color': '#333', 'font-size': '11px', 'text-valign': 'bottom',
-			'text-margin-y': 4, 'width': 22, 'height': 22,
-			'border-width': 1, 'border-color': '#666'
+			'color': '#333', 'font-size': '13px', 'text-valign': 'bottom',
+			'text-margin-y': 8, 'width': 38, 'height': 38,
+			'border-width': 1, 'border-color': '#666',
+			'text-wrap': 'wrap', 'text-max-width': '140px',
+			'text-background-color': '#fff8e8',
+			'text-background-opacity': 0.9,
+			'text-background-padding': '3px',
+			'text-background-shape': 'roundrectangle'
 		}},
 		{ selector: 'node[?isLocal]', style: { 'background-color': '#3d6594', 'border-color': '#234166' }},
-		{ selector: 'node[?focus]', style: { 'background-color': '#c4925e', 'border-color': '#8a5e2e', 'border-width': 2, 'width': 32, 'height': 32 }},
+		{ selector: 'node[?focus]', style: { 'background-color': '#c4925e', 'border-color': '#8a5e2e', 'border-width': 2, 'width': 50, 'height': 50 }},
 		{ selector: 'node[!isLocal]', style: { 'font-style': 'italic', 'background-color': '#ddd', 'border-color': '#aaa' }},
 		{ selector: 'edge', style: { 'width': 1.2, 'curve-style': 'bezier', 'target-arrow-shape': 'triangle', 'line-color': '#888', 'target-arrow-color': '#888' }},
 		{ selector: 'edge[type = "required"]',     style: { 'line-color': '#3d6594', 'target-arrow-color': '#3d6594' }},
@@ -124,7 +157,40 @@
 		{ selector: 'edge[type = "incompatible"]', style: { 'line-color': '#c45e5e', 'target-arrow-color': '#c45e5e', 'width': 2 }},
 		{ selector: 'edge[type = "tested_with"]',  style: { 'line-color': '#999',    'target-arrow-color': '#999',    'line-style': 'dotted' }},
 		{ selector: 'edge[?inCycle]',              style: { 'line-color': '#c45e5e', 'target-arrow-color': '#c45e5e', 'width': 3, 'line-style': 'solid' }},
+		{ selector: 'edge[?bidirectional]', style: { 'source-arrow-shape': 'triangle', 'source-arrow-color': 'data(lineColor)' }},
+		// Re-apply per-type colors to the source arrow to match the edge.
+		{ selector: 'edge[type = "required"][?bidirectional]',     style: { 'source-arrow-color': '#3d6594' }},
+		{ selector: 'edge[type = "optional"][?bidirectional]',     style: { 'source-arrow-color': '#4a7a3e' }},
+		{ selector: 'edge[type = "incompatible"][?bidirectional]', style: { 'source-arrow-color': '#c45e5e' }},
+		{ selector: 'edge[type = "tested_with"][?bidirectional]',  style: { 'source-arrow-color': '#999'    }},
+		{ selector: 'edge[?inCycle][?bidirectional]',              style: { 'source-arrow-color': '#c45e5e' }},
 	];
+
+	// cola is a continuous force-directed layout (Obsidian-style): nodes repel each other, edges
+	// act like springs, and dragging a node makes the rest react in real time. Falls back to
+	// breadthfirst when the user focused on one mod so the hierarchy stays clear.
+	function pickLayout(nodeCount) {
+		var bboxSize = Math.min(900, 250 + nodeCount * 35);
+		var bbox = { x1: 0, y1: 0, w: bboxSize, h: bboxSize };
+		if (focusModId) {
+			return { name: 'breadthfirst', directed: true, padding: 30, spacingFactor: 1.3, roots: '[?focus]', avoidOverlap: true, fit: false, boundingBox: bbox };
+		}
+		return {
+			name: 'cola',
+			animate: true,
+			refresh: 1,
+			maxSimulationTime: 4000,
+			ungrabifyWhileSimulating: false,
+			fit: false,
+			padding: 30,
+			boundingBox: bbox,
+			nodeSpacing: 30,
+			edgeLength: 120,
+			randomize: false,
+			avoidOverlap: true,
+			infinite: false
+		};
+	}
 
 	function render() {
 		if (!rawData) return;
@@ -137,10 +203,16 @@
 			container: canvas,
 			elements: buildElements(rawData),
 			style: commonStyle,
-			layout: focusModId
-				? { name: 'breadthfirst', directed: true, padding: 20, spacingFactor: 1.4, roots: '[?focus]' }
-				: { name: 'cose', padding: 20, animate: false, idealEdgeLength: 80, nodeOverlap: 8 },
+			layout: pickLayout(rawData.nodes.length),
+			minZoom: 0.2,
+			maxZoom: 3,
 			wheelSensitivity: 0.2
+		});
+		// Center the graph at a comfortable zoom level (not auto-fit). For small graphs this keeps
+		// nodes readable; user can hit Fit if they want everything edge-to-edge.
+		cy.one('layoutstop', function() {
+			cy.zoom(1);
+			cy.center(cy.elements());
 		});
 		cy.on('tap', 'node', function(evt) {
 			var n = evt.target.data();
